@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seed Remarks Dropdown</title>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
+  authDomain: "ao-asset.firebaseapp.com",
+  projectId: "ao-asset",
+  storageBucket: "ao-asset.firebasestorage.app",
+  messagingSenderId: "406786910363",
+  appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
+  measurementId: "G-4H7RF76176"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Remarks to seed
+const remarks = [
+  "Quarterly inspection required",
+  "Annual maintenance",
+  "Biometric enabled",
+  "Check door alignment",
+  "Check pressure levels",
+  "Fuel level monitoring required",
+  "IP-based system",
+  "Monthly service required",
+  "Night vision enabled"
+];
+
+// Clear existing Remarks
+async function clearRemarks() {
+  const snapshot = await getDocs(collection(db,'dropdowns','options','remarks'));
+  for(const doc of snapshot.docs){
+    await deleteDoc(doc.ref);
+  }
+}
+
+// Seed remarks
+async function seedRemarks() {
+  const progress = document.getElementById('progress');
+  progress.innerText = "Clearing existing remarks...";
+  await clearRemarks();
+
+  let count = 0;
+  for(const remark of remarks){
+    await addDoc(collection(db,'dropdowns','options','remarks'), { name: remark });
+    count++;
+    progress.innerText = `Added ${count} of ${remarks.length} remarks...`;
+  }
+
+  alert("All remarks added to Firestore!");
+  progress.innerText = "Done!";
+}
+
+window.seedRemarks = seedRemarks;
+</script>
+</head>
+<body style="font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; background:#f0f0f0;">
+  <div style="background:white; padding:30px; border-radius:8px; text-align:center; box-shadow:0 3px 15px rgba(0,0,0,0.2); width:400px;">
+    <h1 style="font-size:22px; font-weight:bold; margin-bottom:20px;">Seed Remarks Dropdown</h1>
+    <p>Click the button below to populate all default remarks in Firestore.</p>
+    <button onclick="seedRemarks()" style="margin-top:20px; padding:12px 25px; background:#3B82F6; color:white; border:none; border-radius:6px; font-size:16px; cursor:pointer;">
+      Seed Remarks
+    </button>
+    <p id="progress" style="margin-top:20px; font-weight:bold; color:#333;">Progress will appear here...</p>
+  </div>
+</body>
+</html>

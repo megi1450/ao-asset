@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - Asset Inventory</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
+    authDomain: "ao-asset.firebaseapp.com",
+    projectId: "ao-asset",
+    storageBucket: "ao-asset.firebasestorage.app",
+    messagingSenderId: "406786910363",
+    appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
+    measurementId: "G-4H7RF76176"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Session check
+  if(!sessionStorage.getItem('user')){
+      window.location.href = 'index.html';
+  }
+
+  window.logout = () => {
+      sessionStorage.removeItem('user');
+      window.location.href = 'index.html';
+  }
+</script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center">
+  <div class="bg-white p-10 rounded-lg shadow-lg w-96 text-center">
+    <h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+    <button onclick="window.location.href='register.html'" class="w-full bg-blue-600 text-white p-2 rounded mb-3 hover:bg-blue-700">Register Asset</button>
+    <button onclick="window.location.href='filter.html'" class="w-full bg-green-600 text-white p-2 rounded mb-3 hover:bg-green-700">Filter Assets</button>
+    <button onclick="logout()" class="w-full bg-red-600 text-white p-2 rounded hover:bg-red-700">Logout</button>
+  </div>
+</body>
+</html>
