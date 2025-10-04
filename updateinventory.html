@@ -31,9 +31,9 @@ async function fetchOptions(type){
 }
 
 // Populate dropdown
-async function populateDropdown(select, type){
+async function populateDropdown(select, type, placeholder){
   const options = await fetchOptions(type);
-  select.innerHTML = "<option value=''>-- Select --</option>";
+  select.innerHTML = `<option value="">-- ${placeholder} --</option>`;
   options.forEach(opt => {
     const optionEl = document.createElement('option');
     optionEl.value = opt.name;
@@ -43,69 +43,85 @@ async function populateDropdown(select, type){
 }
 
 // Add new item
-async function addNewItemGlobal(type){
+async function addNewItem(type){
   const name = prompt(`Enter new ${type} item:`);
   if(!name) return;
   await addDoc(collection(db,'dropdowns','options',type), { name });
-  alert(`${name} added successfully!`);
-  document.querySelectorAll(`#${type}RowsContainer select.item-select`).forEach(select => populateDropdown(select, type));
+  alert(`${name} added!`);
+  document.querySelectorAll(`#${type}RowsContainer select.item-select`).forEach(select => populateDropdown(select, type, "ITEM"));
 }
 
 // Add new brand
-async function addNewBrandGlobal(type){
+async function addNewBrand(type){
   const name = prompt(`Enter new ${type} brand:`);
   if(!name) return;
   await addDoc(collection(db,'dropdowns','options',`${type}_brands`), { name });
-  alert(`${name} added successfully!`);
-  document.querySelectorAll(`#${type}RowsContainer select.brand-select`).forEach(select => populateDropdown(select, `${type}_brands`));
+  alert(`${name} added!`);
+  document.querySelectorAll(`#${type}RowsContainer select.brand-select`).forEach(select => populateDropdown(select, `${type}_brands`, "BRAND"));
 }
 
 // Add row
 async function addRow(type){
   const container = document.getElementById(`${type}RowsContainer`);
   const rowDiv = document.createElement('div');
-  rowDiv.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 mb-3 items-center";
+  rowDiv.className = "row-flex mb-3 p-2 rounded-md bg-[#0a1a3d] gap-2 flex-wrap";
 
-  // Item select
+  // Item select + add button
+  const itemWrapper = document.createElement('div');
+  itemWrapper.className = "flex flex-1 gap-1 items-center";
   const selectItem = document.createElement('select');
   selectItem.className = "item-select p-2 rounded border w-full bg-[#011a3b] text-white";
-  await populateDropdown(selectItem, type);
+  await populateDropdown(selectItem, type, "ITEM");
+  const addItemBtn = document.createElement('button');
+  addItemBtn.type = "button";
+  addItemBtn.textContent = "+";
+  addItemBtn.className = "add-inline-btn";
+  addItemBtn.onclick = () => addNewItem(type);
+  itemWrapper.append(selectItem, addItemBtn);
 
-  // Brand select
+  // Brand select + add button
+  const brandWrapper = document.createElement('div');
+  brandWrapper.className = "flex flex-1 gap-1 items-center";
   const selectBrand = document.createElement('select');
-  selectBrand.className = "brand-select p-2 rounded border w-full bg-[#011a3b] text-white";
-  await populateDropdown(selectBrand, `${type}_brands`);
+  selectBrand.className = "brand-select p-2 rounded border w-full bg-[#02204d] text-white";
+  await populateDropdown(selectBrand, `${type}_brands`, "BRAND");
+  const addBrandBtn = document.createElement('button');
+  addBrandBtn.type = "button";
+  addBrandBtn.textContent = "+";
+  addBrandBtn.className = "add-inline-btn";
+  addBrandBtn.onclick = () => addNewBrand(type);
+  brandWrapper.append(selectBrand, addBrandBtn);
 
   // Total purchased input
   const totalInput = document.createElement('input');
   totalInput.type = "number";
   totalInput.placeholder = "Total Purchased";
-  totalInput.className = "p-2 rounded border bg-[#011a3b] text-white";
+  totalInput.className = "p-2 rounded border bg-[#011a3b] text-white flex-1";
 
   // Currently available input
   const currentInput = document.createElement('input');
   currentInput.type = "number";
   currentInput.placeholder = "Currently Available";
-  currentInput.className = "p-2 rounded border bg-[#011a3b] text-white";
+  currentInput.className = "p-2 rounded border bg-[#011a3b] text-white flex-1";
 
   // Add row button
   const addRowBtn = document.createElement('button');
   addRowBtn.type = "button";
   addRowBtn.textContent = "+";
-  addRowBtn.className = "bg-green-600 text-white rounded p-2 w-full sm:w-auto";
+  addRowBtn.className = "add-btn";
   addRowBtn.onclick = () => { addRow(type); updateAddRowButtons(type); };
 
-  rowDiv.append(selectItem, selectBrand, totalInput, currentInput, addRowBtn);
+  rowDiv.append(itemWrapper, brandWrapper, totalInput, currentInput, addRowBtn);
   container.appendChild(rowDiv);
   updateAddRowButtons(type);
 }
 
-// Keep only last "+" visible
+// Only show last "+" for row
 function updateAddRowButtons(type){
   const rows = document.querySelectorAll(`#${type}RowsContainer > div`);
-  rows.forEach((row, index) => {
-    const btn = row.querySelector('button');
-    btn.style.display = index === rows.length - 1 ? 'block' : 'none';
+  rows.forEach((row,index)=>{
+    const btn = row.querySelector('.add-btn');
+    btn.style.display = index === rows.length-1 ? 'block':'none';
   });
 }
 
@@ -113,35 +129,33 @@ function updateAddRowButtons(type){
 async function submitInventory(type){
   const rows = document.querySelectorAll(`#${type}RowsContainer > div`);
   const items = [];
-  rows.forEach(row => {
+  rows.forEach(row=>{
     const item = row.querySelector('select.item-select').value;
     const brand = row.querySelector('select.brand-select').value;
-    const total = parseInt(row.querySelectorAll('input')[0].value || 0);
-    const current = parseInt(row.querySelectorAll('input')[1].value || 0);
-    if(item) items.push({ item, brand, total, current });
+    const total = parseInt(row.querySelectorAll('input')[0].value||0);
+    const current = parseInt(row.querySelectorAll('input')[1].value||0);
+    if(item) items.push({item,brand,total,current});
   });
-  if(items.length === 0){ alert("Add at least one item!"); return; }
+  if(items.length===0){alert("Add at least one item!"); return;}
   await addDoc(collection(db, `${type}Inventory`), { timestamp: new Date(), items });
   alert(`${type} inventory submitted successfully!`);
   document.getElementById(`${type}RowsContainer`).innerHTML = "";
   addRow(type);
 }
 
-// Tab switch
 window.switchTab = function(tab){
-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(btn=>btn.classList.remove('active'));
   document.getElementById(`${tab}Tab`).classList.add('active');
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.add('hidden'));
   document.getElementById(`${tab}Form`).classList.remove('hidden');
 };
 
-// Expose globally
 window.addRow = addRow;
 window.submitInventory = submitInventory;
-window.addNewItemGlobal = addNewItemGlobal;
-window.addNewBrandGlobal = addNewBrandGlobal;
+window.addNewItemGlobal = addNewItem;
+window.addNewBrandGlobal = addNewBrand;
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded',()=>{
   addRow('housekeepingItems');
   addRow('electricalItems');
 });
@@ -149,19 +163,37 @@ window.addEventListener('DOMContentLoaded', () => {
 
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-body { background: linear-gradient(135deg, #0f172a, #1e293b); color: #e8ecff; font-family: Poppins, sans-serif; }
-.tab-btn { transition: all 0.3s ease; border-bottom: 3px solid transparent; }
-.tab-btn.active { color: #22d3ee; border-color: #22d3ee; }
+body { background: linear-gradient(135deg,#0f172a,#1e293b); color:#e8ecff; font-family:Poppins,sans-serif; }
+.tab-btn { transition: all 0.3s ease; border-bottom:3px solid transparent; }
+.tab-btn.active { color:#22d3ee; border-color:#22d3ee; }
 .tab-content { transition: opacity 0.3s ease-in-out; }
-.card { background: rgba(255,255,255,0.05); border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(12px); box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+.card { background: rgba(255,255,255,0.05); border-radius:14px; border:1px solid rgba(255,255,255,0.1); backdrop-filter: blur(12px); box-shadow:0 4px 20px rgba(0,0,0,0.4); }
+
+.row-flex { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; background-color:#0a1a3d; padding:0.5rem; border-radius:0.5rem; }
+.row-flex input, .row-flex select { 
+  border-radius:0.375rem; 
+  padding:0.5rem; 
+  background-color:#011a3b; 
+  color:white; 
+  border:1px solid #2c4b7b; /* lighter border for visibility */
+  flex:1 1 45%; 
+  min-width:100px; 
+}
+.brand-select { background-color:#02204d; border:1px solid #2c4b7b; }
+.add-btn { flex:0 0 auto; width:50px; background-color:#16a34a; color:white; border-radius:0.375rem; padding:0.5rem; }
+.add-inline-btn { width:30px; background:#facc15; color:#000; border-radius:0.375rem; }
+
 @media(max-width:640px){
-  .grid > select, .grid > input, .grid > button { width: 100%; }
+  .row-flex input, .row-flex select { flex:1 1 100%; min-width:0; }
+  .add-btn { width:100%; margin-top:0.25rem; }
+  .row-flex > div { width:100%; display:flex; gap:0.25rem; }
 }
 </style>
+
 </head>
 
 <body class="p-4 flex flex-col items-center min-h-screen">
-  <!-- Back Button -->
+
 <!-- Mobile Back Button -->
 <div class="fixed back-btn-mobile z-50 md:hidden">
   <a href="dashboard.html" class="flex items-center gap-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold shadow-lg text-sm">
@@ -180,33 +212,22 @@ body { background: linear-gradient(135deg, #0f172a, #1e293b); color: #e8ecff; fo
 
 <!-- Housekeeping Form -->
 <div id="housekeepingItemsForm" class="tab-content">
-  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-    <h2 class="text-xl font-semibold text-cyan-300">Housekeeping Inventory</h2>
-    <div class="flex flex-col sm:flex-row gap-2">
-      <button type="button" onclick="addNewItemGlobal('housekeepingItems')" class="bg-yellow-400 text-black px-4 py-2 rounded font-bold hover:bg-yellow-300">+ Add Item</button>
-      <button type="button" onclick="addNewBrandGlobal('housekeepingItems')" class="bg-yellow-400 text-black px-4 py-2 rounded font-bold hover:bg-yellow-300">+ Add Brand</button>
-    </div>
-  </div>
+  <h2 class="text-xl font-semibold text-cyan-300 mb-2">Housekeeping Inventory</h2>
   <form onsubmit="event.preventDefault(); submitInventory('housekeepingItems');">
-    <div id="housekeepingItemsRowsContainer"></div>
+    <div id="housekeepingItemsRowsContainer" class="flex flex-col gap-3"></div>
     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-bold text-white mt-4">Submit</button>
   </form>
 </div>
 
 <!-- Electrical Form -->
 <div id="electricalItemsForm" class="tab-content hidden">
-  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-    <h2 class="text-xl font-semibold text-cyan-300">Electrical Inventory</h2>
-    <div class="flex flex-col sm:flex-row gap-2">
-      <button type="button" onclick="addNewItemGlobal('electricalItems')" class="bg-yellow-400 text-black px-4 py-2 rounded font-bold hover:bg-yellow-300">+ Add Item</button>
-      <button type="button" onclick="addNewBrandGlobal('electricalItems')" class="bg-yellow-400 text-black px-4 py-2 rounded font-bold hover:bg-yellow-300">+ Add Brand</button>
-    </div>
-  </div>
+  <h2 class="text-xl font-semibold text-cyan-300 mb-2">Electrical Inventory</h2>
   <form onsubmit="event.preventDefault(); submitInventory('electricalItems');">
-    <div id="electricalItemsRowsContainer"></div>
+    <div id="electricalItemsRowsContainer" class="flex flex-col gap-3"></div>
     <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-bold text-white mt-4">Submit</button>
   </form>
 </div>
+
 </div>
 </body>
 </html>
