@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -233,3 +234,240 @@ window.addEventListener('DOMContentLoaded', loadDashboard);
 <p class="text-xs text-soft mt-6">© 2025 AO Asset Systems. Dynamic, compact, and interactive.</p>
 </body>
 </html>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="logo.jpg">
+<title>AO Dashboard - Asset Inventory</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#011f51',
+        dark: '#010e25',
+        accent: '#2e7eff',
+        soft: '#a3b5e4',
+        expired: '#ff4c4c',
+        warning: '#ffb74d',
+        valid: '#4cd964',
+      },
+      fontFamily: { poppins: ['Poppins', 'sans-serif'] },
+    },
+  },
+};
+</script>
+
+<style>
+body {
+  background: radial-gradient(circle at top left, #010e25, #011f51);
+  font-family: 'Poppins', sans-serif;
+  color: #e8ecff;
+}
+.glass-card {
+  background: rgba(0,0,0,0.5);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 5px 25px rgba(0,0,0,0.6);
+  padding: 1.5rem;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+.glass-card:hover { transform: translateY(-3px); box-shadow: 0 8px 35px rgba(46,126,255,0.4); }
+.btn { background: linear-gradient(90deg,#011f51,#2e7eff); color:#fff; font-weight:600; border-radius:12px; padding:12px 0; transition:0.3s; }
+.btn:hover { background: linear-gradient(90deg,#2e7eff,#011f51); box-shadow:0 0 12px rgba(46,126,255,0.5);}
+.logout-btn { background: rgba(255,70,70,0.3);}
+.logout-btn:hover { background: rgba(255,70,70,0.5); box-shadow: 0 0 12px rgba(255,70,70,0.6);}
+.summary-card { text-align:center; padding:0.8rem 0.5rem; border-radius:12px; }
+.summary-card h2 { font-size:0.9rem; margin-bottom:0.25rem; }
+.summary-card p { font-size:1.3rem; font-weight:700; }
+.inline-chart { height: 40px; }
+</style>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
+  authDomain: "ao-asset.firebaseapp.com",
+  projectId: "ao-asset",
+  storageBucket: "ao-asset.firebasestorage.app",
+  messagingSenderId: "406786910363",
+  appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
+  measurementId: "G-4H7RF76176"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+if(!sessionStorage.getItem('user')) window.location.href = 'index.html';
+window.logout = () => { sessionStorage.removeItem('user'); window.location.href = 'index.html'; }
+
+async function loadDashboard() {
+  const snapshot = await getDocs(collection(db, 'assets'));
+  const assets = snapshot.docs.map(doc => doc.data());
+
+  // --- Summary ---
+  const total = assets.length;
+  const expired = assets.filter(a => new Date(a.amcEnd) < new Date()).length;
+  const expiring = assets.filter(a => {
+    const d = new Date(a.amcEnd);
+    const today = new Date();
+    return d >= today && d <= new Date(today.getTime()+30*24*60*60*1000);
+  }).length;
+  const valid = total - expired - expiring;
+
+  document.getElementById('total-assets').textContent = total;
+  document.getElementById('amc-expired').textContent = expired;
+  document.getElementById('amc-warning').textContent = expiring;
+  document.getElementById('amc-valid').textContent = valid;
+
+  // --- Mini inline charts (dynamic monthly data) ---
+  const months = Array.from({length:12}, (_,i)=>new Date(new Date().getFullYear(), i,1).toLocaleString('default',{month:'short'}));
+  
+  // Initialize counts
+  const monthlyTotal = Array(12).fill(0);
+  const monthlyExpired = Array(12).fill(0);
+  const monthlyExpiring = Array(12).fill(0);
+  const monthlyValid = Array(12).fill(0);
+  const today = new Date();
+
+  assets.forEach(a=>{
+    const amcDate = new Date(a.amcEnd);
+    const monthIndex = amcDate.getMonth();
+
+    if(monthIndex>=0 && monthIndex<12){
+      monthlyTotal[monthIndex]++;
+      if(amcDate < today) monthlyExpired[monthIndex]++;
+      else if(amcDate <= new Date(today.getTime()+30*24*60*60*1000)) monthlyExpiring[monthIndex]++;
+      else monthlyValid[monthIndex]++;
+    }
+  });
+
+  const chartDataArr = [monthlyTotal, monthlyExpired, monthlyExpiring, monthlyValid];
+  const chartColors = ['#2e7eff','#ff4c4c','#ffb74d','#4cd964'];
+  ['chart-total','chart-expired','chart-warning','chart-valid'].forEach((id,idx)=>{
+    const ctx = document.getElementById(id).getContext('2d');
+    new Chart(ctx,{
+      type:'line',
+      data:{labels:months,datasets:[{data:chartDataArr[idx],borderColor:chartColors[idx],tension:0.3,fill:false}]},
+      options:{plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}
+    });
+  });
+
+  // --- Block-wise summary ---
+  const blockCount = {};
+  assets.forEach(a=>{
+    if(!a.location) return;
+    const blockName = a.location.split(',')[0].trim();
+    blockCount[blockName] = (blockCount[blockName]||0)+1;
+  });
+
+  const blockLabels = Object.keys(blockCount).sort();
+  const blockCanvas = document.getElementById('blockChart');
+
+  if(blockLabels.length === 0){
+    blockCanvas.style.display = 'none';
+  } else {
+    blockCanvas.style.display = 'block';
+    const blockData = blockLabels.map(b => blockCount[b]);
+    const colors = blockLabels.map((_,i)=>`hsl(${i*(360/blockLabels.length)},70%,55%)`);
+
+    new Chart(blockCanvas.getContext('2d'), {
+      type:'bar',
+      data:{labels:blockLabels,datasets:[{label:'Assets',data:blockData,backgroundColor:colors,borderRadius:4}]},
+      options:{
+        plugins:{
+          legend:{labels:{color:'#e8ecff'}},
+          tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} asset${ctx.raw>1?'s':''}`}}
+        },
+        responsive:true,
+        scales:{x:{ticks:{color:'#e8ecff'}},y:{beginAtZero:true,ticks:{color:'#e8ecff'}}}
+      }
+    });
+  }
+}
+
+window.addEventListener('DOMContentLoaded', loadDashboard);
+</script>
+</head>
+
+<body class="min-h-screen px-4 py-6 flex flex-col items-center">
+
+<!-- Navigation Buttons -->
+<!-- Navigation Buttons -->
+<div class="glass-card w-full max-w-4xl text-center mb-6 p-6 flex flex-col items-center">
+
+  <h1 class="text-2xl font-bold text-accent mb-1">AO Asset Dashboard</h1>
+  <p class="text-soft text-sm mb-6">Quick overview of all assets</p>
+
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+
+    <!-- Asset Category -->
+    <div class="bg-primary/50 border border-white/20 glass-card p-4 flex flex-col items-center shadow-lg hover:shadow-xl transition-all">
+      <h3 class="text-accent font-semibold mb-4">Assets</h3>
+      <button onclick="window.location.href='register.html'" class="btn w-36 sm:w-full mb-3">Register Asset</button>
+      <button onclick="window.location.href='filterasset.html'" class="btn w-36 sm:w-full">View Assets</button>
+    </div>
+
+    <!-- Energy Category -->
+    <div class="bg-primary/45 border border-white/20 glass-card p-4 flex flex-col items-center shadow-lg hover:shadow-xl transition-all">
+      <h3 class="text-accent font-semibold mb-4">Energy</h3>
+      <button onclick="window.location.href='energyconsumption.html'" class="btn w-36 sm:w-full mb-3">Register Energy Consumption</button>
+      <button onclick="window.location.href='filterenergyconsumption.html'" class="btn w-36 sm:w-full">View Energy Consumption</button>
+    </div>
+
+    <!-- Inventory Category -->
+    <div class="bg-primary/50 border border-white/20 glass-card p-4 flex flex-col items-center shadow-lg hover:shadow-xl transition-all">
+      <h3 class="text-accent font-semibold mb-4">Inventory</h3>
+      <button onclick="window.location.href='updateinventory.html'" class="btn w-36 sm:w-full mb-3">Update Inventory</button>
+      <button onclick="window.location.href='filterinventory.html'" class="btn w-36 sm:w-full">View Inventory</button>
+    </div>
+
+  </div>
+
+  <!-- Logout Button -->
+  <button onclick="logout()" class="btn logout-btn w-full mt-6">Logout</button>
+</div>
+
+
+<!-- Top Summary Cards -->
+<div class="glass-card w-full max-w-4xl mb-6 p-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+  <div class="summary-card bg-accent/30">
+    <h2>Total Assets</h2>
+    <p id="total-assets">0</p>
+    <canvas id="chart-total" class="inline-chart"></canvas>
+  </div>
+  <div class="summary-card bg-expired/30">
+    <h2>AMC Expired</h2>
+    <p id="amc-expired">0</p>
+    <canvas id="chart-expired" class="inline-chart"></canvas>
+  </div>
+  <div class="summary-card bg-warning/30">
+    <h2>AMC Expiring</h2>
+    <p id="amc-warning">0</p>
+    <canvas id="chart-warning" class="inline-chart"></canvas>
+  </div>
+  <div class="summary-card bg-valid/30">
+    <h2>AMC Valid</h2>
+    <p id="amc-valid">0</p>
+    <canvas id="chart-valid" class="inline-chart"></canvas>
+  </div>
+</div>
+
+<!-- Block Overview -->
+<div class="glass-card w-full max-w-4xl mb-6 p-6">
+  <h2 class="text-accent font-semibold mb-4">Block-wise Asset Overview</h2>
+  <canvas id="blockChart" class="h-52"></canvas>
+</div>
+
+<p class="text-xs text-soft mt-6">© 2025 AO Asset Systems. Dynamic, compact, and interactive.</p>
+</body>
+</html>
+>>>>>>> 201bf38f13aff9dab04413e9d5e2b80a91e9814b

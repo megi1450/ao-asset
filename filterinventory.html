@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -339,3 +340,346 @@ refreshTab();
 <p class="text-xs text-textsoft mt-6">© 2025 AO Asset Systems. All rights reserved.</p>
 </body>
 </html>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="icon" href="logo.jpg">
+<title>Inventory Analysis</title>
+
+<!-- Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+  body {
+    background: linear-gradient(135deg,#0f172a,#1e293b);
+    color: #e8ecff;
+    font-family: 'Poppins', sans-serif;
+  }
+  .card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    padding: 1rem;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 6px 24px rgba(2,6,23,0.6);
+  }
+  .muted { color: rgba(232,236,255,0.6); }
+  .accent-cyan { color: #06b6d4; }
+  .highlight-yellow { color: #facc15; }
+  .pill { background: rgba(255,255,255,0.03); padding: 0.25rem 0.6rem; border-radius: 999px; border:1px solid rgba(255,255,255,0.04); }
+  table th, table td { border-bottom: 1px solid rgba(255,255,255,0.04); padding: 0.65rem 0.5rem; }
+  .low { color: #ff7b7b; font-weight:700; }
+  .ok { color: #86efac; font-weight:700; }
+  .small-note { font-size:0.85rem; color: rgba(232,236,255,0.65); }
+  .tab-btn { padding:0.5rem 1rem; border-radius:0.5rem; cursor:pointer; font-weight:600; }
+  .tab-active { background:#06b6d4; color:white; }
+  .loading-overlay {
+    position:absolute; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.5); color:white; display:flex; align-items:center; justify-content:center; font-size:1.5rem; z-index:10; border-radius:0.75rem;
+  }
+  @media (max-width:768px) {
+    .grid-3 { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body class="min-h-screen p-4 relative">
+
+<!-- Back Button -->
+<!-- Mobile Back Button -->
+<div class="fixed back-btn-mobile z-50 md:hidden">
+  <a href="dashboard.html" class="flex items-center gap-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold shadow-lg text-sm">
+    ⮐ Back
+  </a>
+</div>
+
+
+<div class="max-w-7xl mx-auto space-y-6 relative">
+
+  <!-- Tabs -->
+  <div class="flex gap-4 mb-4 mt-12">
+    <div id="housekeepingTab" class="tab-btn tab-active">Housekeeping</div>
+    <div id="electricalTab" class="tab-btn">Electrical</div>
+  </div>
+
+  <!-- Threshold + Refresh -->
+  <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+    <div class="flex gap-3 items-center">
+      <label class="small-note mr-2">Low-stock threshold</label>
+      <input type="number" value="10" min="0" class="p-2 rounded bg-[#07122a] border border-white/10 w-24 text-white" id="currentThreshold" />
+      <button class="ml-2 px-3 py-2 rounded bg-cyan-500 hover:bg-cyan-600 text-white font-semibold" id="currentRefresh">Refresh</button>
+      <button class="ml-2 px-3 py-2 rounded bg-yellow-400 hover:bg-yellow-300 text-black font-semibold" id="currentExport">Export CSV</button>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden">Loading...</div>
+
+  <!-- Tab contents -->
+  <div id="housekeepingContent" class="relative"></div>
+  <div id="electricalContent" class="hidden relative"></div>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
+  authDomain: "ao-asset.firebaseapp.com",
+  projectId: "ao-asset",
+  storageBucket: "ao-asset.firebasestorage.app",
+  messagingSenderId: "406786910363",
+  appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
+  measurementId: "G-4H7RF76176"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const COLLECTIONS = {
+  housekeeping: ['housekeepingInventory'],
+  electrical: ['electricalItemsInventory']
+};
+
+let currentTab = 'housekeeping';
+const housekeepingTabBtn = document.getElementById('housekeepingTab');
+const electricalTabBtn = document.getElementById('electricalTab');
+const housekeepingContent = document.getElementById('housekeepingContent');
+const electricalContent = document.getElementById('electricalContent');
+const currentThreshold = document.getElementById('currentThreshold');
+const currentRefresh = document.getElementById('currentRefresh');
+const currentExport = document.getElementById('currentExport');
+const loading = document.getElementById('loadingOverlay');
+
+// Tab switching
+housekeepingTabBtn.addEventListener('click', async () => {
+  currentTab='housekeeping';
+  housekeepingTabBtn.classList.add('tab-active');
+  electricalTabBtn.classList.remove('tab-active');
+  housekeepingContent.classList.remove('hidden');
+  electricalContent.classList.add('hidden');
+  await refreshTab();
+});
+
+electricalTabBtn.addEventListener('click', async () => {
+  currentTab='electrical';
+  electricalTabBtn.classList.add('tab-active');
+  housekeepingTabBtn.classList.remove('tab-active');
+  electricalContent.classList.remove('hidden');
+  housekeepingContent.classList.add('hidden');
+  await refreshTab();
+});
+
+// Fetch collection
+async function fetchCollection(name){
+  try{
+    const snap = await getDocs(collection(db,name));
+    return snap.docs.map(d=>({id:d.id,data:d.data()}));
+  }catch(e){return [];}
+}
+
+// Parse timestamp
+function parseTimestamp(val){
+  if(!val) return null;
+  if(typeof val?.toDate==='function') return val.toDate();
+  if(val instanceof Date) return val;
+  const d = new Date(val);
+  return isNaN(d)?null:d;
+}
+
+// Fetch & aggregate
+async function fetchAndAggregate(type){
+  const records=[];
+  for(const col of COLLECTIONS[type]){
+    const docs = await fetchCollection(col);
+    for(const doc of docs){
+      const d = doc.data;
+      const ts = parseTimestamp(d.timestamp||d.date||d.createdAt) || new Date();
+      if(Array.isArray(d.items)){
+        for(const it of d.items){
+          records.push({
+            item: it.item || it.name || it.itemName || it,
+            total: Number(it.total || it.totalQty || it.quantity || 0),
+            available: Number(it.current ?? it.available ?? it.currentQty ?? 0),
+            timestamp: parseTimestamp(it.timestamp) || parseTimestamp(d.timestamp) || new Date()
+          });
+        }
+      } else if(d.item || d.name){
+        records.push({
+          item: d.item||d.name,
+          total: Number(d.total||d.quantity||0),
+          available: Number(d.available||d.current||0),
+          timestamp: ts
+        });
+      }
+    }
+  }
+  return records;
+}
+
+// Analyze
+function analyzeRecords(records){
+  const itemsMap = new Map();
+  const monthlyMap = new Map();
+  for(const r of records){
+    const name = (r.item||'Unknown').toString();
+    const total = Number(r.total||0);
+    const available = Number(r.available||0);
+    const used = Math.max(0,total-available);
+
+    if(!itemsMap.has(name)) itemsMap.set(name,{name,total:0,available:0,used:0,lastUpdated:null});
+    const e = itemsMap.get(name);
+    e.total += total;
+    e.available += available;
+    e.used += used;
+    if(!e.lastUpdated || r.timestamp>e.lastUpdated) e.lastUpdated = r.timestamp;
+
+    const ts = r.timestamp || new Date();
+    const key = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}`;
+    monthlyMap.set(key,(monthlyMap.get(key)||0)+used);
+  }
+
+  const items = Array.from(itemsMap.values()).sort((a,b)=>b.total-a.total);
+  const monthly = Array.from(monthlyMap.entries())
+    .sort((a,b) => new Date(a[0]+'-01') - new Date(b[0]+'-01'));
+
+  return {items, monthly};
+}
+
+// Render UI & charts
+const charts = {};
+function renderUI(type,agg,containerId){
+  const container = document.getElementById(containerId);
+  container.innerHTML='';
+  const threshold = Number(currentThreshold.value||10);
+
+  const distinct = agg.items.length;
+  const totalQty = agg.items.reduce((s,i)=>s+i.total,0);
+  const lowItems = agg.items.filter(i=>i.available<=threshold);
+  const lowCount = lowItems.length;
+
+  container.innerHTML=`
+  <section class="grid grid-cols-3 gap-4 grid-3 mb-4">
+    <div class="card text-center"><p class="muted">Distinct Items</p><div class="text-2xl font-bold accent-cyan mt-2">${distinct}</div><p class="small-note mt-1">Total different items tracked</p></div>
+    <div class="card text-center"><p class="muted">Total Quantity</p><div class="text-2xl font-bold text-green-400 mt-2">${totalQty}</div><p class="small-note mt-1">Sum of reported totals</p></div>
+    <div class="card text-center"><p class="muted">Low-stock Items</p><div class="text-2xl font-bold highlight-yellow mt-2">${lowCount}</div><p class="small-note mt-1">Items at/below threshold</p></div>
+  </section>
+  <section class="grid grid-cols-2 gap-4 grid-2 mb-4">
+    <div class="card"><h2 class="text-lg font-semibold accent-cyan">Availability: Available vs Used (top items)</h2><canvas id="${containerId}Bar" style="height:320px"></canvas></div>
+    <div class="card"><h2 class="text-lg font-semibold highlight-yellow">Usage Distribution</h2><canvas id="${containerId}Pie" style="height:320px"></canvas></div>
+  </section>
+  <section class="grid grid-cols-3 gap-4 mb-4">
+    <div class="card col-span-2"><h2 class="text-lg font-semibold accent-cyan">Monthly Used Trend</h2><canvas id="${containerId}Line" style="height:260px"></canvas></div>
+    <div class="card"><h2 class="text-lg font-semibold highlight-yellow">Low Stock Alerts</h2><div class="mt-3 space-y-2" id="${containerId}Low"></div></div>
+  </section>
+  <section class="card">
+    <div class="flex justify-between items-center mb-3"><h2 class="text-lg font-semibold accent-cyan">Inventory Summary</h2><p class="small-note">Last updated: ${new Date().toLocaleString()}</p></div>
+    <div class="overflow-x-auto"><table class="w-full text-left"><thead><tr class="text-white/70"><th>Item</th><th>Total</th><th>Available</th><th>Used</th><th>Last Updated</th></tr></thead><tbody id="${containerId}Table"></tbody></table></div>
+  </section>
+  `;
+
+  const tableBody = document.getElementById(containerId+'Table');
+  const lowList = document.getElementById(containerId+'Low');
+
+  lowItems.slice(0,6).forEach(i=>{
+    const div=document.createElement('div');
+    div.className='flex justify-between items-center';
+    div.innerHTML=`<div><div class="font-semibold">${i.name}</div><div class="muted small-note">Available: <span class="${i.available<=threshold?'low':''}">${i.available}</span> / Total: ${i.total}</div></div>
+                   <div class="pill">${i.used} used</div>`;
+    lowList.appendChild(div);
+  });
+
+  agg.items.forEach(i=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="align-top">${i.name}</td><td>${i.total}</td><td>${i.available}</td><td>${i.used}</td><td>${i.lastUpdated?new Date(i.lastUpdated).toLocaleString():'-'}</td>`;
+    tableBody.appendChild(tr);
+  });
+
+  // Charts
+  const top = agg.items.slice(0,12);
+  const labels = top.map(x=>x.name);
+  const availableData = top.map(x=>x.available);
+  const usedData = top.map(x=>x.used);
+
+  const barCtx = document.getElementById(containerId+'Bar').getContext('2d');
+  if(charts[containerId+'Bar']) charts[containerId+'Bar'].destroy();
+  charts[containerId+'Bar'] = new Chart(barCtx,{
+    type:'bar',
+    data:{labels,datasets:[{label:'Available',data:availableData,backgroundColor:'rgba(6,182,212,0.9)'},{label:'Used',data:usedData,backgroundColor:'rgba(250,204,21,0.9)'}]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#e8ecff'}}},scales:{x:{ticks:{color:'#e8ecff'}},y:{beginAtZero:true,ticks:{color:'#e8ecff'}}}}
+  });
+
+  const pieCtx = document.getElementById(containerId+'Pie').getContext('2d');
+  if(charts[containerId+'Pie']) charts[containerId+'Pie'].destroy();
+  charts[containerId+'Pie'] = new Chart(pieCtx,{
+    type:'pie',
+    data:{labels:agg.items.map(x=>x.name),datasets:[{data:agg.items.map(x=>x.used),backgroundColor:generatePalette(agg.items.length)}]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#e8ecff'}}}}
+  });
+
+  const months = agg.monthly.map(m=>m[0]);
+  const monthlyUsed = agg.monthly.map(m=>m[1]);
+  const lineCtx = document.getElementById(containerId+'Line').getContext('2d');
+  if(charts[containerId+'Line']) charts[containerId+'Line'].destroy();
+  charts[containerId+'Line'] = new Chart(lineCtx,{
+    type:'line',
+    data:{labels:months,datasets:[{label:'Total Used',data:monthlyUsed,borderColor:'#86efac',backgroundColor:'rgba(134,239,172,0.12)',fill:true,tension:0.25}]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#e8ecff'}}},scales:{x:{ticks:{color:'#e8ecff'}},y:{ticks:{color:'#e8ecff'}}}}
+  });
+
+  return agg;
+}
+
+// Palette
+function generatePalette(n){
+  const base=['#06b6d4','#4ade80','#facc15','#f97316','#ef4444','#8b5cf6','#60a5fa','#fb7185','#34d399','#f59e0b'];
+  return Array.from({length:n},(_,i)=>base[i%base.length]);
+}
+
+// Export CSV
+function exportCSV(items,type){
+  const header=['Item','Total','Available','Used','LastUpdated'];
+  const rows = items.map(i=>[i.name,i.total,i.available,i.used,i.lastUpdated?new Date(i.lastUpdated).toISOString():'']);
+  const csv = [header,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${type}_inventory_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// Refresh tab
+let lastAgg={housekeeping:null,electrical:null};
+async function refreshTab(){
+  loading.classList.remove('hidden');
+  currentRefresh.disabled=true; currentRefresh.textContent='Loading...';
+  try{
+    const records = await fetchAndAggregate(currentTab);
+    const agg = analyzeRecords(records);
+    lastAgg[currentTab] = renderUI(currentTab,agg,currentTab+'Content');
+  }catch(e){console.error(e); alert('Error fetching data');}
+  finally{
+    currentRefresh.disabled=false; currentRefresh.textContent='Refresh';
+    loading.classList.add('hidden');
+  }
+}
+
+currentRefresh.addEventListener('click',refreshTab);
+currentThreshold.addEventListener('change',refreshTab);
+currentExport.addEventListener('click',()=>{if(lastAgg[currentTab]) exportCSV(lastAgg[currentTab].items,currentTab); else alert('No data');});
+
+// Initial load
+refreshTab();
+</script>
+<p class="text-xs text-textsoft mt-6">© 2025 AO Asset Systems. All rights reserved.</p>
+</body>
+</html>
+>>>>>>> 201bf38f13aff9dab04413e9d5e2b80a91e9814b
