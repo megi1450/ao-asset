@@ -22,6 +22,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Store locations globally
+let locations = [];
+
 // Fetch dropdown options
 async function fetchOptions(subcollection) {
   const colRef = collection(db, 'dropdowns', 'options', subcollection);
@@ -29,10 +32,23 @@ async function fetchOptions(subcollection) {
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
-// Populate dropdown
+// Populate dropdowns
 async function populateDropdown(id, subcollection) {
+  let options = await fetchOptions(subcollection);
+
+  // Sort location properly
+  if(subcollection === 'locations'){
+    options.sort((a,b)=>{
+      const [blockA,floorA] = a.name.match(/[A-Za-z]+|[0-9]+/g);
+      const [blockB,floorB] = b.name.match(/[A-Za-z]+|[0-9]+/g);
+      if(blockA !== blockB) return blockA.localeCompare(blockB);
+      return parseInt(floorA)-parseInt(floorB);
+    });
+    locations = options; // save globally
+    return;
+  }
+
   const select = document.getElementById(id);
-  const options = await fetchOptions(subcollection);
   select.innerHTML = "";
   options.forEach(opt => {
     const optionEl = document.createElement('option');
@@ -42,7 +58,7 @@ async function populateDropdown(id, subcollection) {
   });
 }
 
-// Add new dropdown item for user-editable fields
+// Add new dropdown item
 async function addNewItem(subcollection, dropdownId) {
   let newName = prompt(`Enter new ${subcollection === 'assetNames' ? 'Asset Name' : subcollection}:`);
   if(!newName) return;
@@ -90,10 +106,10 @@ async function generateAssetCode(assetShort, locationShort){
   return `AO-${assetShort}-${locationShort}-${count.toString().padStart(3,'0')}`;
 }
 
-// Update displayed generated asset code
+// Update generated asset code
 async function updateGeneratedCode() {
   const assetSel = document.getElementById('assetName').value ? JSON.parse(document.getElementById('assetName').value) : null;
-  const locationSel = document.getElementById('location').value ? JSON.parse(document.getElementById('location').value) : null;
+  const locationSel = document.getElementById('locationInput').dataset.selectedValue ? JSON.parse(document.getElementById('locationInput').dataset.selectedValue) : null;
   if(!assetSel || !locationSel) {
     document.getElementById('generatedCode').textContent = "";
     return;
@@ -104,12 +120,14 @@ async function updateGeneratedCode() {
 
 // Submit asset
 async function submitAsset(){
+  document.getElementById('loadingOverlay').style.display = 'flex';
+
   const assetSel = document.getElementById('assetName').value ? JSON.parse(document.getElementById('assetName').value) : null;
   const categorySel = document.getElementById('category').value ? JSON.parse(document.getElementById('category').value) : null;
   const manufacturerSel = document.getElementById('manufacturer').value ? JSON.parse(document.getElementById('manufacturer').value) : null;
   const modelSel = document.getElementById('model').value ? JSON.parse(document.getElementById('model').value) : null;
   const installationDate = document.getElementById('installationDate').value;
-  const locationSel = document.getElementById('location').value ? JSON.parse(document.getElementById('location').value) : null;
+  const locationSel = document.getElementById('locationInput').dataset.selectedValue ? JSON.parse(document.getElementById('locationInput').dataset.selectedValue) : null;
   const amcVendor = document.getElementById('amcVendor').value;
   const remarkSel = document.getElementById('remarks').value ? JSON.parse(document.getElementById('remarks').value) : null;
   const amcStart = document.getElementById('amcStart').value;
@@ -117,6 +135,7 @@ async function submitAsset(){
 
   if(!assetSel || !categorySel || !manufacturerSel || !modelSel || !installationDate || !locationSel || !amcVendor || !remarkSel || !amcStart || !amcEnd){
     alert("Please fill all fields.");
+    document.getElementById('loadingOverlay').style.display = 'none';
     return;
   }
 
@@ -141,38 +160,101 @@ async function submitAsset(){
   alert(`Asset Registered! Code: ${assetCode}`);
   document.getElementById('assetForm').reset();
   document.getElementById('generatedCode').textContent = "";
+  document.getElementById('locationDropdown').innerHTML = "";
+  document.getElementById('locationInput').dataset.selectedValue = "";
+  document.getElementById('loadingOverlay').style.display = 'none';
 }
 
-// Populate dropdowns on load
+function setupLocationDropdown(){
+  const input = document.getElementById('locationInput');
+  const dropdown = document.getElementById('locationDropdown');
+
+  function filterLocations(){
+  const value = input.value.toLowerCase().trim();
+  const parts = value.split(/\s+/); // split by space
+  const filtered = locations.filter(loc => {
+    const locStr = loc.name.toLowerCase().replace(/\s+/g, '');
+    return parts.every(p => locStr.includes(p.replace(/\s+/g, '')));
+  });
+
+  dropdown.innerHTML = "";
+  filtered.forEach(loc => {
+    const li = document.createElement('li');
+    li.className = "px-2 py-1 hover:bg-blue-600 cursor-pointer";
+
+    // Optional: highlight first matching part
+    let displayName = loc.name;
+    parts.forEach(p => {
+      const regex = new RegExp(`(${p})`, 'i');
+      displayName = displayName.replace(regex, '<span class="bg-yellow-400 text-black">$1</span>');
+    });
+    li.innerHTML = displayName;
+
+    li.onclick = () => {
+      input.value = loc.name;
+      input.dataset.selectedValue = JSON.stringify(loc);
+      dropdown.classList.add('hidden');
+      updateGeneratedCode();
+    };
+    dropdown.appendChild(li);
+  });
+
+  dropdown.classList.remove('hidden');
+}
+
+
+  input.addEventListener('input', filterLocations);
+  input.addEventListener('focus', filterLocations);
+
+  document.addEventListener('click', (e)=>{
+    if(!input.contains(e.target) && !dropdown.contains(e.target)){
+      dropdown.classList.add('hidden');
+      if(!locations.find(loc => loc.name === input.value)){
+        input.value = "";
+        input.dataset.selectedValue = "";
+        updateGeneratedCode();
+      }
+    }
+  });
+}
+
+
+// Load dropdowns
 window.addEventListener('DOMContentLoaded', async () => {
   await populateDropdown('assetName','assetNames');
   await populateDropdown('category','categories');
   await populateDropdown('manufacturer','manufacturers');
   await populateDropdown('model','models');
   await populateDropdown('location','locations');
-  await populateDropdown('remarks','remarks'); // NEW: Remarks dropdown
+  await populateDropdown('remarks','remarks');
 
   document.getElementById('assetName').addEventListener('change', updateGeneratedCode);
-  document.getElementById('location').addEventListener('change', updateGeneratedCode);
+  setupLocationDropdown();
 });
 
-// Make functions globally accessible for inline onclick
 window.addNewItem = addNewItem;
 window.submitAsset = submitAsset;
 window.updateGeneratedCode = updateGeneratedCode;
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
+<style>
+body {
+  background: linear-gradient(135deg, #010d23, #011e50);
+}
+</style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
-  <div class="bg-white p-8 rounded shadow-md w-full max-w-xl">
-    <h1 class="text-2xl font-bold mb-6 text-center">Asset Registration</h1>
+<body class="flex flex-col items-center justify-start min-h-screen p-4 text-white">
+<div class="w-full max-w-xl relative">
+  <button onclick="window.location.href='dashboard.html'" class="mb-4 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1 rounded">← Back to Home</button>
+  <div class="bg-gradient-to-b from-[#010d23] to-[#011e50] p-8 rounded shadow-md w-full">
+    <h1 class="text-2xl font-bold mb-6 text-center text-blue-300">Asset Registration</h1>
     <form id="assetForm" class="space-y-4" onsubmit="event.preventDefault(); submitAsset();">
 
       <!-- Asset Name -->
       <div>
         <label class="block font-medium mb-1">Asset Name</label>
         <div class="flex space-x-2">
-          <select id="assetName" class="border p-2 flex-1 rounded"></select>
+          <select id="assetName" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
           <button type="button" onclick="addNewItem('assetNames','assetName')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
         </div>
       </div>
@@ -181,7 +263,7 @@ window.updateGeneratedCode = updateGeneratedCode;
       <div>
         <label class="block font-medium mb-1">Category</label>
         <div class="flex space-x-2">
-          <select id="category" class="border p-2 flex-1 rounded"></select>
+          <select id="category" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
           <button type="button" onclick="addNewItem('categories','category')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
         </div>
       </div>
@@ -190,7 +272,7 @@ window.updateGeneratedCode = updateGeneratedCode;
       <div>
         <label class="block font-medium mb-1">Manufacturer</label>
         <div class="flex space-x-2">
-          <select id="manufacturer" class="border p-2 flex-1 rounded"></select>
+          <select id="manufacturer" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
           <button type="button" onclick="addNewItem('manufacturers','manufacturer')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
         </div>
       </div>
@@ -199,7 +281,7 @@ window.updateGeneratedCode = updateGeneratedCode;
       <div>
         <label class="block font-medium mb-1">Model / Serial No</label>
         <div class="flex space-x-2">
-          <select id="model" class="border p-2 flex-1 rounded"></select>
+          <select id="model" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
           <button type="button" onclick="addNewItem('models','model')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
         </div>
       </div>
@@ -207,48 +289,55 @@ window.updateGeneratedCode = updateGeneratedCode;
       <!-- Installation Date -->
       <div>
         <label class="block font-medium mb-1">Installation Date</label>
-        <input type="date" id="installationDate" class="border p-2 w-full rounded">
+        <input type="date" id="installationDate" class="border p-2 w-full rounded bg-[#011a3b] text-white">
       </div>
 
       <!-- Location -->
-      <div>
+      <div class="relative">
         <label class="block font-medium mb-1">Location</label>
-        <select id="location" class="border p-2 w-full rounded"></select>
+        <input type="text" id="locationInput" class="border p-2 w-full rounded bg-[#011a3b] text-white" placeholder="Select location">
+        <ul id="locationDropdown" class="absolute z-50 w-full bg-[#011a3b] text-white border rounded max-h-48 overflow-y-auto hidden"></ul>
       </div>
 
       <!-- AMC Vendor -->
       <div>
         <label class="block font-medium mb-1">AMC Vendor</label>
-        <input type="text" id="amcVendor" placeholder="Enter AMC Vendor" class="border p-2 w-full rounded">
+        <input type="text" id="amcVendor" placeholder="Enter AMC Vendor" class="border p-2 w-full rounded bg-[#011a3b] text-white">
       </div>
 
-      <!-- Remarks (NEW) -->
+      <!-- Remarks -->
       <div>
         <label class="block font-medium mb-1">Remarks</label>
         <div class="flex space-x-2">
-          <select id="remarks" class="border p-2 flex-1 rounded"></select>
+          <select id="remarks" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
           <button type="button" onclick="addNewItem('remarks','remarks')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
         </div>
       </div>
 
       <!-- AMC Start/End -->
-      <div class="flex space-x-2">
+      <div class="flex flex-col md:flex-row md:space-x-2">
         <div class="flex-1">
           <label class="block font-medium mb-1">AMC Start Date</label>
-          <input type="date" id="amcStart" class="border p-2 w-full rounded">
+          <input type="date" id="amcStart" class="border p-2 w-full rounded bg-[#011a3b] text-white">
         </div>
         <div class="flex-1">
           <label class="block font-medium mb-1">AMC End Date</label>
-          <input type="date" id="amcEnd" class="border p-2 w-full rounded">
+          <input type="date" id="amcEnd" class="border p-2 w-full rounded bg-[#011a3b] text-white">
         </div>
       </div>
 
       <!-- Generated Asset Code -->
-      <div id="generatedCode" class="text-center font-bold text-lg mb-4 text-blue-600"></div>
+      <div id="generatedCode" class="text-center font-bold text-lg mb-4 text-blue-300"></div>
 
       <!-- Submit -->
       <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded font-bold hover:bg-blue-700">Register Asset</button>
     </form>
   </div>
+
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xl hidden">
+    Registering asset...
+  </div>
+</div>
 </body>
 </html>
