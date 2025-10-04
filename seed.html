@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="logo.jpg">
+<title>Seed Brands</title>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
+  authDomain: "ao-asset.firebaseapp.com",
+  projectId: "ao-asset",
+  storageBucket: "ao-asset.firebasestorage.app",
+  messagingSenderId: "406786910363",
+  appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
+  measurementId: "G-4H7RF76176"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Real-world brands
+const housekeepingBrands = [
+  "Harpic", "Lizol", "Vim", "Domex", "Dettol",
+  "Harpic PowerPlus", "Colin", "Pine-Sol", "Scotch-Brite", "Odonil",
+  "Air Wick", "Vim Bar", "Comfort", "Surf Excel", "Vanish",
+  "Cif", "Ezee", "Godrej Protekt", "Johnson Wax", "Mr. Muscle"
+];
+
+const electricalBrands = [
+  "Philips", "Havells", "Anchor", "Syska", "Bajaj",
+  "Eveready", "Crompton", "Panasonic", "GE Lighting", "V-Guard",
+  "Orient", "Luminous", "Schneider Electric", "Legrand", "ABB",
+  "Wipro", "Siemens", "LG", "Sony", "Samsung"
+];
+
+// Clear existing brands
+async function clearBrands(type){
+  const snapshot = await getDocs(collection(db, 'dropdowns', 'options', type));
+  for(const doc of snapshot.docs){
+    await deleteDoc(doc.ref);
+  }
+  console.log(`✅ Cleared all existing ${type}`);
+}
+
+// Seed brands
+async function seedBrands(type, brands){
+  console.log(`🌱 Seeding ${type}...`);
+  await clearBrands(type);
+
+  for(let i=0; i<brands.length; i++){
+    await addDoc(collection(db, 'dropdowns', 'options', type), { name: brands[i] });
+    console.log(`Added ${i+1}/${brands.length}: ${brands[i]}`);
+  }
+
+  console.log(`🎉 All ${type} seeded successfully!`);
+}
+
+window.seedHousekeepingBrands = () => seedBrands('housekeepingItems_brands', housekeepingBrands);
+window.seedElectricalBrands = () => seedBrands('electricalItems_brands', electricalBrands);
+</script>
+</head>
+
+<body style="font-family:sans-serif; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; background:#f0f4f8; gap:20px; padding:10px;">
+
+  <div style="background:white; padding:30px; border-radius:10px; text-align:center; box-shadow:0 3px 20px rgba(0,0,0,0.15); width:100%; max-width:400px;">
+    <h1 style="font-size:22px; font-weight:bold; margin-bottom:20px; color:#2563EB;">Seed Housekeeping Brands</h1>
+    <p style="color:#444;">Click below to populate 20 real housekeeping brands into Firestore. Progress is shown in console.</p>
+    <button onclick="seedHousekeepingBrands()" 
+      style="margin-top:20px; padding:12px 25px; background:#2563EB; color:white; border:none; border-radius:6px; font-size:16px; cursor:pointer; box-shadow:0 2px 10px rgba(37,99,235,0.3);">
+      Seed Housekeeping Brands
+    </button>
+  </div>
+
+  <div style="background:white; padding:30px; border-radius:10px; text-align:center; box-shadow:0 3px 20px rgba(0,0,0,0.15); width:100%; max-width:400px;">
+    <h1 style="font-size:22px; font-weight:bold; margin-bottom:20px; color:#2563EB;">Seed Electrical Brands</h1>
+    <p style="color:#444;">Click below to populate 20 real electrical brands into Firestore. Progress is shown in console.</p>
+    <button onclick="seedElectricalBrands()" 
+      style="margin-top:20px; padding:12px 25px; background:#2563EB; color:white; border:none; border-radius:6px; font-size:16px; cursor:pointer; box-shadow:0 2px 10px rgba(37,99,235,0.3);">
+      Seed Electrical Brands
+    </button>
+  </div>
+
+</body>
+</html>

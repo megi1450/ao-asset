@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="logo.jpg">
+<title>Energy Consumption - AO Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body {
+  background: linear-gradient(135deg,#0f172a,#1e293b);
+  color: #e8ecff;
+  font-family: 'Poppins', sans-serif;
+}
+.card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  padding: 2rem;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  width: 100%;
+  max-width: 650px;
+}
+input {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #e8ecff;
+  outline: none;
+  transition: all 0.3s ease;
+}
+input::placeholder { color: rgba(255,255,255,0.6); }
+input:focus { border-color:#2e7eff; box-shadow:0 0 8px rgba(46,126,255,0.4); }
+.btn-primary {
+  background: linear-gradient(135deg,#2e7eff,#0040b5);
+  font-weight:600;
+  transition: all 0.3s ease;
+}
+.btn-primary:hover { background: linear-gradient(135deg,#4c91ff,#013b9a); transform: translateY(-2px);}
+.btn-back {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.3);
+  font-weight:600;
+  color: #e8ecff;
+}
+.btn-back:hover { background: rgba(255,255,255,0.15); transform: translateY(-1px);}
+.section-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 2px solid rgba(255,255,255,0.3);
+}
+.subheading {
+  font-size: 0.95rem;
+  color: #a5b4fc;
+  margin-bottom: 0.5rem;
+}
+.section-bg {
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.highlight {
+  color: #facc15; /* yellow highlight */
+  font-weight: 600;
+}
+</style>
+</head>
+<body class="p-4 flex justify-center items-start min-h-screen">
+  <!-- Back Button -->
+<!-- Mobile Back Button -->
+<div class="fixed back-btn-mobile z-50 md:hidden">
+  <a href="dashboard.html" class="flex items-center gap-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold shadow-lg text-sm">
+    ⮐ Back
+  </a>
+</div>
+
+
+<div class="card mt-6">
+  <h1 class="text-2xl font-bold mb-6 text-cyan-400 text-center">Energy Consumption Entry</h1>
+
+
+  <form id="energyForm" class="space-y-6">
+    <!-- Month/Year -->
+    <div>
+      <label class="block mb-1">Month</label>
+      <input type="month" id="monthYear" class="w-full p-2 rounded" required>
+    </div>
+
+    <!-- BESCOM Section -->
+    <div class="section-bg">
+      <h2 class="section-title text-cyan-400">BESCOM - Electricity</h2>
+      <p class="subheading">Enter the <span class="highlight">current month's consumption</span> and bill amount</p>
+      <div class="mb-2">
+        <label class="block mb-1">Current Month Reading (kWh)</label>
+        <input type="number" id="bescomReading" placeholder="e.g., 420" class="w-full p-2 rounded" required>
+      </div>
+      <div>
+        <label class="block mb-1">Bill Amount (₹)</label>
+        <input type="number" id="bescomBill" placeholder="e.g., 4500" class="w-full p-2 rounded" required>
+      </div>
+    </div>
+
+    <!-- BWSSB Section -->
+    <div class="section-bg">
+      <h2 class="section-title text-yellow-400">BWSSB - Water</h2>
+      <p class="subheading">Enter the <span class="highlight">current month's water usage</span> and bill</p>
+      <div class="mb-2">
+        <label class="block mb-1">Current Month Reading (kL)</label>
+        <input type="number" id="bwssbReading" placeholder="e.g., 35" class="w-full p-2 rounded" required>
+      </div>
+      <div>
+        <label class="block mb-1">Bill Amount (₹)</label>
+        <input type="number" id="bwssbBill" placeholder="e.g., 2700" class="w-full p-2 rounded" required>
+      </div>
+    </div>
+
+    <!-- Generator Section -->
+    <div class="section-bg">
+      <h2 class="section-title text-green-400">Generator Power</h2>
+      <p class="subheading">Feed <span class="highlight">current diesel levels</span> and <span class="highlight">diesel consumption</span> for each generator</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Generator 1 -->
+        <div>
+          <h3 class="font-medium mb-2">Generator 1</h3>
+          <div class="mb-2">
+            <label class="block mb-1">Current Diesel Level (L)</label>
+            <input type="number" id="gen1DieselLevel" placeholder="e.g., 150" class="w-full p-2 rounded" required>
+          </div>
+          <div>
+            <label class="block mb-1">Diesel Consumption (L)</label>
+            <input type="number" id="gen1Consumption" placeholder="e.g., 20" class="w-full p-2 rounded" required>
+          </div>
+        </div>
+
+        <!-- Generator 2 -->
+        <div>
+          <h3 class="font-medium mb-2">Generator 2</h3>
+          <div class="mb-2">
+            <label class="block mb-1">Current Diesel Level (L)</label>
+            <input type="number" id="gen2DieselLevel" placeholder="e.g., 130" class="w-full p-2 rounded" required>
+          </div>
+          <div>
+            <label class="block mb-1">Diesel Consumption (L)</label>
+            <input type="number" id="gen2Consumption" placeholder="e.g., 18" class="w-full p-2 rounded" required>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <button type="submit" class="w-full btn-primary text-white p-3 rounded mt-3">Submit</button>
+  </form>
+
+  <p id="status" class="mt-4 text-center text-yellow-400 font-semibold"></p>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
+  authDomain: "ao-asset.firebaseapp.com",
+  projectId: "ao-asset",
+  storageBucket: "ao-asset.firebasestorage.app",
+  messagingSenderId: "406786910363",
+  appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
+  measurementId: "G-4H7RF76176"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Set current month as default
+const monthInput = document.getElementById('monthYear');
+const now = new Date();
+const year = now.getFullYear();
+const month = String(now.getMonth() + 1).padStart(2, '0');
+monthInput.value = `${year}-${month}`;
+
+const form = document.getElementById('energyForm');
+const status = document.getElementById('status');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  status.textContent = "Submitting...";
+
+  const monthYear = monthInput.value;
+  const bescomReading = parseFloat(document.getElementById('bescomReading').value);
+  const bwssbReading = parseFloat(document.getElementById('bwssbReading').value);
+  const bescomBill = parseFloat(document.getElementById('bescomBill').value);
+  const bwssbBill = parseFloat(document.getElementById('bwssbBill').value);
+  const gen1DieselLevel = parseFloat(document.getElementById('gen1DieselLevel').value);
+  const gen1Consumption = parseFloat(document.getElementById('gen1Consumption').value);
+  const gen2DieselLevel = parseFloat(document.getElementById('gen2DieselLevel').value);
+  const gen2Consumption = parseFloat(document.getElementById('gen2Consumption').value);
+
+  if(!monthYear) return status.textContent = "Please select Month & Year.";
+
+  try {
+    await addDoc(collection(db, 'energyConsumption'), {
+      monthYear,
+      bescomReading,
+      bwssbReading,
+      bescomBill,
+      bwssbBill,
+      generator1: { dieselLevel: gen1DieselLevel, consumption: gen1Consumption },
+      generator2: { dieselLevel: gen2DieselLevel, consumption: gen2Consumption },
+      timestamp: new Date()
+    });
+    status.textContent = "Energy data submitted successfully!";
+    form.reset();
+    monthInput.value = `${year}-${month}`;
+  } catch(err) {
+    console.error(err);
+    status.textContent = "Error submitting data. Check console.";
+  }
+});
+</script>
+<p class="text-xs text-textsoft mt-6">© 2025 AO Asset Systems. All rights reserved.</p>
+</body>
+</html>
