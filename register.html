@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="logo.jpg">
 <title>Asset Registration</title>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
@@ -230,6 +231,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('assetName').addEventListener('change', updateGeneratedCode);
   setupLocationDropdown();
+  windows.location="dashboard.html";
 });
 
 window.addNewItem = addNewItem;
@@ -244,8 +246,14 @@ body {
 </style>
 </head>
 <body class="flex flex-col items-center justify-start min-h-screen p-4 text-white">
+  <!-- Mobile Back Button -->
+<div class="fixed back-btn-mobile z-50 md:hidden">
+  <a href="dashboard.html" class="flex items-center gap-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold shadow-lg text-sm">
+    ⮐ Back
+  </a>
+</div>
+
 <div class="w-full max-w-xl relative">
-  <button onclick="window.location.href='dashboard.html'" class="mb-4 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1 rounded">← Back to Home</button>
   <div class="bg-gradient-to-b from-[#010d23] to-[#011e50] p-8 rounded shadow-md w-full">
     <h1 class="text-2xl font-bold mb-6 text-center text-blue-300">Asset Registration</h1>
     <form id="assetForm" class="space-y-4" onsubmit="event.preventDefault(); submitAsset();">
@@ -339,5 +347,6 @@ body {
     Registering asset...
   </div>
 </div>
+<p class="text-xs text-textsoft mt-6">© 2025 AO Asset Systems. All rights reserved.</p>
 </body>
 </html>

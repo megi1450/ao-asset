@@ -1,126 +1,128 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>UTech Login</title>
-<script src="https://cdn.tailwindcss.com"></script>
 
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          primary: '#011f51',
-          dark: '#010e25',
-          accent: '#2e7eff',
-          textmain: '#e8ecff',
-          textsoft: '#a3b5e4',
-        },
-        fontFamily: {
-          poppins: ['Poppins', 'sans-serif'],
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="logo.jpg">
+  <title>AO Asset</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#011f51',
+            dark: '#010e25',
+            accent: '#2e7eff',
+            textmain: '#e8ecff',
+            textsoft: '#a3b5e4',
+          },
+          fontFamily: {
+            poppins: ['Poppins', 'sans-serif'],
+          },
         },
       },
-    },
-  };
-</script>
+    };
+  </script>
 
-<style>
-  body {
-    font-family: 'Poppins', sans-serif;
-    background: linear-gradient(135deg, #010e25, #011f51);
-    color: #e8ecff;
-    margin: 0;
-  }
-
-  .login-card {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 18px;
-    backdrop-filter: blur(14px);
-    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.45);
-    transition: all 0.3s ease;
-  }
-
-  .login-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 30px rgba(46, 126, 255, 0.25);
-  }
-
-  input {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #e8ecff;
-    outline: none;
-    transition: all 0.3s ease;
-  }
-
-  input::placeholder {
-    color: rgba(255, 255, 255, 0.6);
-  }
-
-  input:focus {
-    border-color: #2e7eff;
-    box-shadow: 0 0 8px rgba(46, 126, 255, 0.4);
-    background: rgba(255, 255, 255, 0.12);
-  }
-
-  .login-btn {
-    background: linear-gradient(135deg, #2e7eff, #0040b5);
-    border: none;
-    border-radius: 10px;
-    color: #fff;
-    font-weight: 600;
-    font-size: 1rem;
-    letter-spacing: 0.3px;
-    padding: 0.75rem;
-    transition: all 0.3s ease;
-    box-shadow: 0 3px 0 #002b70;
-  }
-
-  .login-btn:hover {
-    background: linear-gradient(135deg, #4c91ff, #013b9a);
-    box-shadow: 0 0 14px rgba(46, 126, 255, 0.6), 0 4px 0 #002b70;
-    transform: translateY(-2px);
-  }
-
-  .secondary-btn {
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #d6defb;
-    border-radius: 10px;
-    font-weight: 500;
-    padding: 0.7rem;
-    transition: all 0.3s ease;
-  }
-
-  .secondary-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #ffffff;
-  }
-
-  .title {
-    color: #2e7eff;
-    font-weight: 700;
-    font-size: 1.8rem;
-    text-shadow: 0 0 6px rgba(46, 126, 255, 0.4);
-  }
-
-  .subtitle {
-    color: #a3b5e4;
-    font-size: 0.9rem;
-  }
-
-  /* Hide right image on mobile */
-  @media (max-width: 768px) {
-    .right-image {
-      display: none;
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #010e25, #011f51);
+      color: #e8ecff;
+      margin: 0;
     }
-  }
-</style>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+    .login-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 6px 25px rgba(0, 0, 0, 0.45);
+      transition: all 0.3s ease;
+    }
+
+    .login-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(46, 126, 255, 0.25);
+    }
+
+    input {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e8ecff;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    input::placeholder {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    input:focus {
+      border-color: #2e7eff;
+      box-shadow: 0 0 8px rgba(46, 126, 255, 0.4);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .login-btn {
+      background: linear-gradient(135deg, #2e7eff, #0040b5);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 1rem;
+      letter-spacing: 0.3px;
+      padding: 0.75rem;
+      transition: all 0.3s ease;
+      box-shadow: 0 3px 0 #002b70;
+    }
+
+    .login-btn:hover {
+      background: linear-gradient(135deg, #4c91ff, #013b9a);
+      box-shadow: 0 0 14px rgba(46, 126, 255, 0.6), 0 4px 0 #002b70;
+      transform: translateY(-2px);
+    }
+
+    .secondary-btn {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #d6defb;
+      border-radius: 10px;
+      font-weight: 500;
+      padding: 0.7rem;
+      transition: all 0.3s ease;
+    }
+
+    .secondary-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+
+    .title {
+      color: #2e7eff;
+      font-weight: 700;
+      font-size: 1.8rem;
+      text-shadow: 0 0 6px rgba(46, 126, 255, 0.4);
+    }
+
+    .subtitle {
+      color: #a3b5e4;
+      font-size: 0.9rem;
+    }
+
+    /* Hide right image on mobile */
+    @media (max-width: 768px) {
+      .right-image {
+        display: none;
+      }
+    }
+  </style>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -166,11 +168,16 @@
         <h1 class="title mb-3">Welcome to AO Asset</h1>
         <p class="subtitle mb-8">Sign into your account</p>
 
-        <input type="text" id="username" placeholder="Phone or Email address" class="w-full p-3 mb-4 rounded-lg">
+        <input type="text" id="username" placeholder="Username" class="w-full p-3 mb-4 rounded-lg">
         <input type="password" id="password" placeholder="Password" class="w-full p-3 mb-6 rounded-lg">
 
         <button onclick="login()" class="login-btn w-full mb-4">Log In</button>
         <button onclick="seedAdmin()" class="secondary-btn w-full mb-6">Seed Admin</button>
+        <p class="text-xs text-textsoft mt-4">
+          By logging in, you agree to the <a href="#" class="text-accent underline">Terms and Conditions</a> of AO
+          Asset. This system is intended for authorized apartment management and asset analysis only. Unauthorized
+          access or misuse is strictly prohibited.
+        </p>
 
         <p class="text-xs text-textsoft mt-6">© 2025 AO Asset Systems. All rights reserved.</p>
       </div>
@@ -183,4 +190,5 @@
 
   </div>
 </body>
+
 </html>

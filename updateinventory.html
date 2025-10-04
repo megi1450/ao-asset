@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="logo.jpg">
+<title>Inventory Management</title>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+import { getFirestore, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
+  authDomain: "ao-asset.firebaseapp.com",
+  projectId: "ao-asset",
+  storageBucket: "ao-asset.firebasestorage.app",
+  messagingSenderId: "406786910363",
+  appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
+  measurementId: "G-4H7RF76176"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Fetch options for dropdown
+async function fetchOptions(type){
+  const colRef = collection(db, 'dropdowns', 'options', type);
+  const snapshot = await getDocs(colRef);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+// Populate dropdown
+async function populateDropdown(select, type){
+  const options = await fetchOptions(type);
+  select.innerHTML = "<option value=''>-- Select --</option>";
+  options.forEach(opt => {
+    const optionEl = document.createElement('option');
+    optionEl.value = opt.name;
+    optionEl.textContent = opt.name;
+    select.appendChild(optionEl);
+  });
+}
+
+// Add new item
+async function addNewItemGlobal(type){
+  const name = prompt(`Enter new ${type} item:`);
+  if(!name) return;
+  await addDoc(collection(db,'dropdowns','options',type), { name });
+  alert(`${name} added successfully!`);
+  document.querySelectorAll(`#${type}RowsContainer select.item-select`).forEach(select => populateDropdown(select, type));
+}
+
+// Add new brand
+async function addNewBrandGlobal(type){
+  const name = prompt(`Enter new ${type} brand:`);
+  if(!name) return;
+  await addDoc(collection(db,'dropdowns','options',`${type}_brands`), { name });
+  alert(`${name} added successfully!`);
+  document.querySelectorAll(`#${type}RowsContainer select.brand-select`).forEach(select => populateDropdown(select, `${type}_brands`));
+}
+
+// Add row
+async function addRow(type){
+  const container = document.getElementById(`${type}RowsContainer`);
+  const rowDiv = document.createElement('div');
+  rowDiv.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 mb-3 items-center";
+
+  // Item select
+  const selectItem = document.createElement('select');
+  selectItem.className = "item-select p-2 rounded border w-full bg-[#011a3b] text-white";
+  await populateDropdown(selectItem, type);
+
+  // Brand select
+  const selectBrand = document.createElement('select');
+  selectBrand.className = "brand-select p-2 rounded border w-full bg-[#011a3b] text-white";
+  await populateDropdown(selectBrand, `${type}_brands`);
+
+  // Total purchased input
+  const totalInput = document.createElement('input');
+  totalInput.type = "number";
+  totalInput.placeholder = "Total Purchased";
+  totalInput.className = "p-2 rounded border bg-[#011a3b] text-white";
+
+  // Currently available input
+  const currentInput = document.createElement('input');
+  currentInput.type = "number";
+  currentInput.placeholder = "Currently Available";
+  currentInput.className = "p-2 rounded border bg-[#011a3b] text-white";
+
+  // Add row button
+  const addRowBtn = document.createElement('button');
+  addRowBtn.type = "button";
+  addRowBtn.textContent = "+";
+  addRowBtn.className = "bg-green-600 text-white rounded p-2 w-full sm:w-auto";
+  addRowBtn.onclick = () => { addRow(type); updateAddRowButtons(type); };
+
+  rowDiv.append(selectItem, selectBrand, totalInput, currentInput, addRowBtn);
+  container.appendChild(rowDiv);
+  updateAddRowButtons(type);
+}
+
+// Keep only last "+" visible
+function updateAddRowButtons(type){
+  const rows = document.querySelectorAll(`#${type}RowsContainer > div`);
+  rows.forEach((row, index) => {
+    const btn = row.querySelector('button');
+    btn.style.display = index === rows.length - 1 ? 'block' : 'none';
+  });
+}
+
+// Submit inventory
+async function submitInventory(type){
+  const rows = document.querySelectorAll(`#${type}RowsContainer > div`);
+  const items = [];
+  rows.forEach(row => {
+    const item = row.querySelector('select.item-select').value;
+    const brand = row.querySelector('select.brand-select').value;
+    const total = parseInt(row.querySelectorAll('input')[0].value || 0);
+    const current = parseInt(row.querySelectorAll('input')[1].value || 0);
+    if(item) items.push({ item, brand, total, current });
+  });
+  if(items.length === 0){ alert("Add at least one item!"); return; }
+  await addDoc(collection(db, `${type}Inventory`), { timestamp: new Date(), items });
+  alert(`${type} inventory submitted successfully!`);
+  document.getElementById(`${type}RowsContainer`).innerHTML = "";
+  addRow(type);
+}
+
+// Tab switch
+window.switchTab = function(tab){
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById(`${tab}Tab`).classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+  document.getElementById(`${tab}Form`).classList.remove('hidden');
+};
+
+// Expose globally
+window.addRow = addRow;
+window.submitInventory = submitInventory;
+window.addNewItemGlobal = addNewItemGlobal;
+window.addNewBrandGlobal = addNewBrandGlobal;
+
+window.addEventListener('DOMContentLoaded', () => {
+  addRow('housekeepingItems');
+  addRow('electricalItems');
+});
+</script>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body { background: linear-gradient(135deg, #0f172a, #1e293b); color: #e8ecff; font-family: Poppins, sans-serif; }
+.tab-btn { transition: all 0.3s ease; border-bottom: 3px solid transparent; }
+.tab-btn.active { color: #22d3ee; border-color: #22d3ee; }
+.tab-content { transition: opacity 0.3s ease-in-out; }
+.card { background: rgba(255,255,255,0.05); border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(12px); box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+@media(max-width:640px){
+  .grid > select, .grid > input, .grid > button { width: 100%; }
+}
+</style>
+</head>
+
+<body class="p-4 flex flex-col items-center min-h-screen">
+  <!-- Back Button -->
+<!-- Mobile Back Button -->
+<div class="fixed back-btn-mobile z-50 md:hidden">
+  <a href="dashboard.html" class="flex items-center gap-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold shadow-lg text-sm">
+    ⮐ Back
+  </a>
+</div>
+
+<div class="card w-full max-w-6xl p-4">
+<h1 class="text-2xl sm:text-3xl font-bold text-cyan-400 text-center mb-6">🏢 Inventory Management</h1>
+
+<!-- Tabs -->
+<div class="flex flex-col sm:flex-row justify-around border-b border-gray-700 mb-4 sm:mb-6 gap-2">
+  <button id="housekeepingItemsTab" class="tab-btn active py-2 px-4" onclick="switchTab('housekeepingItems')">🧹 Housekeeping</button>
+  <button id="electricalItemsTab" class="tab-btn py-2 px-4" onclick="switchTab('electricalItems')">💡 Electrical</button>
+</div>
+
+<!-- Housekeeping Form -->
+<div id="housekeepingItemsForm" class="tab-content">
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+    <h2 class="text-xl font-semibold text-cyan-300">Housekeeping Inventory</h2>
+    <div class="flex flex-col sm:flex-row gap-2">
+      <button type="button" onclick="addNewItemGlobal('housekeepingItems')" class="bg-yellow-400 text-black px-4 py-2 rounded font-bold hover:bg-yellow-300">+ Add Item</button>
+      <button type="button" onclick="addNewBrandGlobal('housekeepingItems')" class="bg-yellow-400 text-black px-4 py-2 rounded font-bold hover:bg-yellow-300">+ Add Brand</button>
+    </div>
+  </div>
+  <form onsubmit="event.preventDefault(); submitInventory('housekeepingItems');">
+    <div id="housekeepingItemsRowsContainer"></div>
+    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-bold text-white mt-4">Submit</button>
+  </form>
+</div>
+
+<!-- Electrical Form -->
+<div id="electricalItemsForm" class="tab-content hidden">
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+    <h2 class="text-xl font-semibold text-cyan-300">Electrical Inventory</h2>
+    <div class="flex flex-col sm:flex-row gap-2">
+      <button type="button" onclick="addNewItemGlobal('electricalItems')" class="bg-yellow-400 text-black px-4 py-2 rounded font-bold hover:bg-yellow-300">+ Add Item</button>
+      <button type="button" onclick="addNewBrandGlobal('electricalItems')" class="bg-yellow-400 text-black px-4 py-2 rounded font-bold hover:bg-yellow-300">+ Add Brand</button>
+    </div>
+  </div>
+  <form onsubmit="event.preventDefault(); submitInventory('electricalItems');">
+    <div id="electricalItemsRowsContainer"></div>
+    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-bold text-white mt-4">Submit</button>
+  </form>
+</div>
+</div>
+<p class="text-xs text-textsoft mt-6">© 2025 AO Asset Systems. All rights reserved.</p>
+</body>
+</html>

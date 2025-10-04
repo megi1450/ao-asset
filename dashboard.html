@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="logo.jpg">
 <title>AO Dashboard - Asset Inventory</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -163,15 +164,41 @@ window.addEventListener('DOMContentLoaded', loadDashboard);
 <body class="min-h-screen px-4 py-6 flex flex-col items-center">
 
 <!-- Navigation Buttons -->
-<div class="glass-card w-full max-w-4xl text-center mb-6">
+<!-- Navigation Buttons -->
+<div class="glass-card w-full max-w-4xl text-center mb-6 p-6 flex flex-col items-center">
+
   <h1 class="text-2xl font-bold text-accent mb-1">AO Asset Dashboard</h1>
-  <p class="text-soft text-sm mb-4">Quick overview of all assets</p>
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-    <button onclick="window.location.href='register.html'" class="btn">Register Asset</button>
-    <button onclick="window.location.href='filter.html'" class="btn">Filter / View Assets</button>
-    <button onclick="logout()" class="btn logout-btn">Logout</button>
+  <p class="text-soft text-sm mb-6">Quick overview of all assets</p>
+
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+
+    <!-- Asset Category -->
+    <div class="bg-primary/50 border border-white/20 glass-card p-4 flex flex-col items-center shadow-lg hover:shadow-xl transition-all">
+      <h3 class="text-accent font-semibold mb-4">Assets</h3>
+      <button onclick="window.location.href='register.html'" class="btn w-36 sm:w-full mb-3">Register Asset</button>
+      <button onclick="window.location.href='filterasset.html'" class="btn w-36 sm:w-full">View Assets</button>
+    </div>
+
+    <!-- Energy Category -->
+    <div class="bg-primary/45 border border-white/20 glass-card p-4 flex flex-col items-center shadow-lg hover:shadow-xl transition-all">
+      <h3 class="text-accent font-semibold mb-4">Energy</h3>
+      <button onclick="window.location.href='energyconsumption.html'" class="btn w-36 sm:w-full mb-3">Register Energy Consumption</button>
+      <button onclick="window.location.href='filterenergyconsumption.html'" class="btn w-36 sm:w-full">View Energy Consumption</button>
+    </div>
+
+    <!-- Inventory Category -->
+    <div class="bg-primary/50 border border-white/20 glass-card p-4 flex flex-col items-center shadow-lg hover:shadow-xl transition-all">
+      <h3 class="text-accent font-semibold mb-4">Inventory</h3>
+      <button onclick="window.location.href='updateinventory.html'" class="btn w-36 sm:w-full mb-3">Update Inventory</button>
+      <button onclick="window.location.href='filterinventory.html'" class="btn w-36 sm:w-full">View Inventory</button>
+    </div>
+
   </div>
+
+  <!-- Logout Button -->
+  <button onclick="logout()" class="btn logout-btn w-full mt-6">Logout</button>
 </div>
+
 
 <!-- Top Summary Cards -->
 <div class="glass-card w-full max-w-4xl mb-6 p-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
