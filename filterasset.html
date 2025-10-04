@@ -4,10 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="logo.jpg">
-<title>Asset Dashboard - Modern UI</title>
+<title>Filter Assets - Modern UI</title>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
 // Firebase config
 const firebaseConfig = {
@@ -26,8 +27,9 @@ const db = getFirestore(app);
 let allAssets = [];
 let currentFilteredAssets = [];
 let currentTab = 'all';
+let editAssetId = null;
 
-// Fetch assets from Firestore
+// Fetch assets
 async function fetchAssets() {
   const snapshot = await getDocs(collection(db,'assets'));
   allAssets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -38,25 +40,17 @@ async function fetchAssets() {
   renderAssets(currentFilteredAssets);
 }
 
-// Populate filter dropdowns
+// Populate dropdowns
 function populateDropdowns() {
   const unique = (field) => [...new Set(allAssets.map(a => a[field]))].sort();
-
   document.getElementById('filterCategory').innerHTML =
-    '<option value="">All Categories</option>' +
-    unique('category').map(c => `<option value="${c}">${c}</option>`).join('');
-  
+    '<option value="">All Categories</option>' + unique('category').map(c => `<option value="${c}">${c}</option>`).join('');
   document.getElementById('filterLocation').innerHTML =
-    '<option value="">All Locations</option>' +
-    unique('location').map(l => `<option value="${l}">${l}</option>`).join('');
-  
+    '<option value="">All Locations</option>' + unique('location').map(l => `<option value="${l}">${l}</option>`).join('');
   document.getElementById('filterManufacturer').innerHTML =
-    '<option value="">All Manufacturers</option>' +
-    unique('manufacturer').map(m => `<option value="${m}">${m}</option>`).join('');
-  
+    '<option value="">All Manufacturers</option>' + unique('manufacturer').map(m => `<option value="${m}">${m}</option>`).join('');
   document.getElementById('filterAmcVendor').innerHTML =
-    '<option value="">All AMC Vendors</option>' +
-    unique('amcVendor').map(v => `<option value="${v}">${v}</option>`).join('');
+    '<option value="">All AMC Vendors</option>' + unique('amcVendor').map(v => `<option value="${v}">${v}</option>`).join('');
 }
 
 // Populate tabs
@@ -96,7 +90,7 @@ function highlightCurrentTab() {
   }
 }
 
-// Apply filters including Asset Code
+// Filters
 function applyFilters() {
   const cat = document.getElementById('filterCategory').value;
   const loc = document.getElementById('filterLocation').value;
@@ -117,7 +111,7 @@ function applyFilters() {
   renderAssets(currentFilteredAssets);
 }
 
-// Apply sorting
+// Sort
 function applySort() {
   const sortKey = document.getElementById('sortAssets').value;
   currentFilteredAssets.sort((a,b) => a[sortKey] < b[sortKey] ? -1 : (a[sortKey] > b[sortKey] ? 1 : 0));
@@ -131,29 +125,88 @@ function applyTab(block) {
   applyFilters();
 }
 
-// Render asset list
+// Render asset cards
 function renderAssets(assets) {
   const container = document.getElementById('assetList');
   container.innerHTML = '';
-  if (!assets.length) {
-    container.innerHTML = '<p class="text-center text-gray-400">No assets found</p>';
-    return;
-  }
+  if (!assets.length) { container.innerHTML = '<p class="text-center text-gray-400">No assets found</p>'; return; }
+
   assets.forEach(a => {
     const div = document.createElement('div');
-    div.className = 'border p-4 rounded shadow-lg bg-gray-800 text-white hover:shadow-xl transition';
+    div.className = 'border p-4 rounded shadow-lg bg-gray-800 text-white relative hover:shadow-xl transition';
+
     div.innerHTML = `
+      <div class="absolute top-2 right-2 flex gap-1">
+        <button class="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-sm" onclick="openEditModal('${a.id}')">Edit</button>
+        <button class="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-sm" onclick="deleteAsset('${a.id}')">Delete</button>
+      </div>
       <p class="font-bold text-cyan-400">${a.assetCode}</p>
-      <p>${a.assetName} (${a.assetShort})</p>
+      <p>${a.assetName} (${a.assetShort || ''})</p>
       <p><strong>Category:</strong> ${a.category}</p>
-      <p><strong>Location:</strong> ${a.location} (${a.locationShort})</p>
+      <p><strong>Location:</strong> ${a.location} (${a.locationShort || ''})</p>
       <p><strong>Manufacturer:</strong> <span class="cursor-pointer text-yellow-400 hover:underline" onclick="filterByManufacturer('${a.manufacturer}')">${a.manufacturer}</span></p>
-      <p><strong>Installed:</strong> ${a.installationDate}</p>
-      <p><strong>AMC Vendor:</strong> ${a.amcVendor}</p>
-      <p><strong>AMC Start:</strong> ${a.amcStart} | <strong>End:</strong> ${a.amcEnd}</p>
+      <p><strong>Installed:</strong> ${a.installationDate || 'N/D'}</p>
+      <p><strong>AMC Vendor:</strong> ${a.amcVendor || 'N/D'}</p>
+      <p><strong>AMC Start:</strong> ${a.amcStart || 'N/D'} | <strong>End:</strong> ${a.amcEnd || 'N/D'}</p>
+      <p><strong>Remarks:</strong> ${a.remark || ''}</p>
     `;
     container.appendChild(div);
   });
+}
+
+// Edit Modal
+function openEditModal(assetId) {
+  editAssetId = assetId;
+  const asset = allAssets.find(a => a.id === assetId);
+  if(!asset) return;
+
+  const f = document.getElementById('editForm');
+  ['assetName','category','manufacturer','model','location','installationDate','amcVendor','amcStart','amcEnd','remark']
+    .forEach(key => f[key].value = asset[key] || '');
+
+  // readonly fields
+  ['assetName','category','location'].forEach(k => {
+    f[k].readOnly = true;
+    f[k].classList.add('bg-gray-600','cursor-not-allowed');
+  });
+
+  document.getElementById('editModal').classList.remove('hidden');
+}
+
+async function saveEditedAsset() {
+  if(!editAssetId) return;
+  const f = document.getElementById('editForm');
+  try {
+    const ref = doc(db,'assets',editAssetId);
+    await updateDoc(ref,{
+      manufacturer: f.manufacturer.value,
+      model: f.model.value,
+      installationDate: f.installationDate.value,
+      amcVendor: f.amcVendor.value,
+      amcStart: f.amcStart.value,
+      amcEnd: f.amcEnd.value,
+      remark: f.remark.value
+    });
+    alert("Asset updated successfully!");
+    document.getElementById('editModal').classList.add('hidden');
+    await fetchAssets();
+  } catch(err){
+    console.error(err);
+    alert("Failed to update asset!");
+  }
+}
+
+async function deleteAsset(assetId) {
+  if(!confirm("Are you sure you want to delete this asset? This action cannot be undone.")) return;
+  try {
+    const ref = doc(db,'assets',assetId);
+    await deleteDoc(ref);
+    alert("Asset deleted successfully!");
+    await fetchAssets();
+  } catch(err){
+    console.error(err);
+    alert("Failed to delete asset!");
+  }
 }
 
 // Filter by manufacturer
@@ -162,49 +215,18 @@ function filterByManufacturer(name) {
   applyFilters();
 }
 
-// Render analytics and mini line charts
+// Analytics
 function renderAnalytics() {
   const total = currentFilteredAssets.length;
   document.getElementById('totalAssets').textContent = total;
-
   const blockCounts = {};
   currentFilteredAssets.forEach(a => {
     const block = a.location.split(',')[0];
     blockCounts[block] = (blockCounts[block] || 0) + 1;
   });
-
   const blockList = document.getElementById('blockList');
   blockList.innerHTML = '';
-  for (const b in blockCounts) {
-    blockList.innerHTML += `<li>${b}: ${blockCounts[b]}</li>`;
-  }
-
-  // Mini line charts based on real data (count trend)
-  ['lineChart1','lineChart2','lineChart3'].forEach((id, i) => {
-    const canvas = document.getElementById(id);
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.beginPath();
-    ctx.strokeStyle = i===0?'#06b6d4':i===1?'#f97316':'#a78bfa';
-    ctx.lineWidth = 2;
-    
-    // trend data: random count simulation
-    const data = [];
-    const count = Math.max(total,5);
-    for(let j=0;j<count;j++){
-      data.push(Math.floor(Math.random()*(total+1)));
-    }
-
-    const stepX = canvas.width/(data.length-1 || 1);
-    const maxY = Math.max(...data,1);
-    data.forEach((v,j)=>{
-      const x=j*stepX;
-      const y=canvas.height-(v/maxY*canvas.height);
-      if(j===0) ctx.moveTo(x,y);
-      else ctx.lineTo(x,y);
-    });
-    ctx.stroke();
-  });
+  for (const b in blockCounts) blockList.innerHTML += `<li>${b}: ${blockCounts[b]}</li>`;
 }
 
 // Export CSV
@@ -234,25 +256,32 @@ function exportJSON() {
   URL.revokeObjectURL(url);
 }
 
-window.addEventListener('DOMContentLoaded', fetchAssets);
+// Expose functions globally
 window.applyFilters = applyFilters;
 window.applySort = applySort;
 window.applyTab = applyTab;
 window.filterByManufacturer = filterByManufacturer;
+window.openEditModal = openEditModal;
+window.saveEditedAsset = saveEditedAsset;
+window.deleteAsset = deleteAsset;
 window.exportCSV = exportCSV;
 window.exportJSON = exportJSON;
+
+window.addEventListener('DOMContentLoaded', fetchAssets);
 </script>
+
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 body { background: linear-gradient(135deg,#0f172a,#1e293b); }
 select, input { background:#1e293b;color:white; }
 button { transition: all 0.2s; }
 button:hover { transform: scale(1.03); }
+.modal-bg { background: rgba(0,0,0,0.7); }
 </style>
 </head>
 <body class="p-4 min-h-screen text-white">
-  <!-- Back Button -->
-<!-- Mobile Back Button -->
+
+<!-- Back Button -->
 <div class="fixed back-btn-mobile z-50 md:hidden">
   <a href="dashboard.html" class="flex items-center gap-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold shadow-lg text-sm">
     ⮐ Back
@@ -260,8 +289,7 @@ button:hover { transform: scale(1.03); }
 </div>
 
 <div class="max-w-6xl mx-auto">
-
-  <h1 class="text-3xl font-bold mb-6 text-center text-cyan-400">Asset Dashboard</h1>
+  <h1 class="text-3xl font-bold mb-6 text-center text-cyan-400">Filter Assets</h1>
 
   <!-- Tabs -->
   <div id="tabs" class="flex flex-wrap gap-2 mb-4"></div>
@@ -281,28 +309,76 @@ button:hover { transform: scale(1.03); }
   </div>
 
   <!-- Export Buttons -->
-  <div class="flex gap-2 mb-4">
+  <div class="flex flex-wrap gap-2 mb-4">
     <button onclick="exportCSV()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Export CSV</button>
     <button onclick="exportJSON()" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">Export JSON</button>
   </div>
 
-  <!-- Summary with mini charts -->
+  <!-- Summary -->
   <div id="summary" class="bg-gray-900 p-4 rounded mb-4 shadow flex flex-col md:flex-row md:justify-between md:items-center">
     <div>
       <p class="font-bold mb-2 text-cyan-400">Total Assets: <span id="totalAssets">0</span></p>
       <p class="mb-2">Assets by Block:</p>
       <ul id="blockList" class="list-disc ml-5 text-gray-300"></ul>
     </div>
-    <div class="flex gap-2 mt-4 md:mt-0">
-      <canvas class="bg-gray-800 rounded p-1" id="lineChart1" width="80" height="40"></canvas>
-      <canvas class="bg-gray-800 rounded p-1" id="lineChart2" width="80" height="40"></canvas>
-      <canvas class="bg-gray-800 rounded p-1" id="lineChart3" width="80" height="40"></canvas>
-    </div>
   </div>
 
   <!-- Asset List -->
   <div id="assetList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-
 </div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="hidden fixed inset-0 modal-bg flex items-center justify-center z-50 p-4">
+  <div class="bg-gray-800 p-6 rounded shadow-lg w-full max-w-md relative overflow-y-auto max-h-[90vh]">
+    <h2 class="text-xl font-bold mb-4 text-cyan-400">Edit Asset</h2>
+    <form id="editForm" class="space-y-3" onsubmit="event.preventDefault(); saveEditedAsset();">
+      <div>
+        <label class="block mb-1">Asset Name</label>
+        <input type="text" name="assetName" class="w-full p-2 rounded bg-gray-600 text-white cursor-not-allowed" readonly>
+      </div>
+      <div>
+        <label class="block mb-1">Category</label>
+        <input type="text" name="category" class="w-full p-2 rounded bg-gray-600 text-white cursor-not-allowed" readonly>
+      </div>
+      <div>
+        <label class="block mb-1">Manufacturer</label>
+        <input type="text" name="manufacturer" class="w-full p-2 rounded bg-gray-700 text-white">
+      </div>
+      <div>
+        <label class="block mb-1">Model/Serial</label>
+        <input type="text" name="model" class="w-full p-2 rounded bg-gray-700 text-white">
+      </div>
+      <div>
+        <label class="block mb-1">Location</label>
+        <input type="text" name="location" class="w-full p-2 rounded bg-gray-600 text-white cursor-not-allowed" readonly>
+      </div>
+      <div>
+        <label class="block mb-1">Installation Date</label>
+        <input type="date" name="installationDate" class="w-full p-2 rounded bg-gray-700 text-white">
+      </div>
+      <div>
+        <label class="block mb-1">AMC Vendor</label>
+        <input type="text" name="amcVendor" class="w-full p-2 rounded bg-gray-700 text-white">
+      </div>
+      <div>
+        <label class="block mb-1">AMC Start</label>
+        <input type="date" name="amcStart" class="w-full p-2 rounded bg-gray-700 text-white">
+      </div>
+      <div>
+        <label class="block mb-1">AMC End</label>
+        <input type="date" name="amcEnd" class="w-full p-2 rounded bg-gray-700 text-white">
+      </div>
+      <div>
+        <label class="block mb-1">Remarks</label>
+        <input type="text" name="remark" class="w-full p-2 rounded bg-gray-700 text-white">
+      </div>
+      <div class="flex justify-end gap-2 mt-2 flex-wrap">
+        <button type="button" class="bg-gray-500 hover:bg-gray-600 px-4 py-2 rounded" onclick="document.getElementById('editModal').classList.add('hidden')">Cancel</button>
+        <button type="submit" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 </body>
 </html>
