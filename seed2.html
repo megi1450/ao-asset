@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add New Location</title>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
+  authDomain: "ao-asset.firebaseapp.com",
+  projectId: "ao-asset",
+  storageBucket: "ao-asset.firebasestorage.app",
+  messagingSenderId: "406786910363",
+  appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
+  measurementId: "G-4H7RF76176"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+async function addLocation() {
+  const newLocation = "Podium Common Area";
+  const progress = document.getElementById('progress');
+
+  // Check if location already exists
+  const q = query(collection(db,'dropdowns','options','locations'), where("name", "==", newLocation));
+  const snapshot = await getDocs(q);
+
+  if (!snapshot.empty) {
+    progress.innerText = `"${newLocation}" already exists in Firestore.`;
+    return;
+  }
+
+  // Add new location
+  await addDoc(collection(db,'dropdowns','options','locations'), { name: newLocation });
+  progress.innerText = `"${newLocation}" has been added successfully!`;
+}
+
+window.addLocation = addLocation;
+</script>
+</head>
+<body style="font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; background:#f0f0f0;">
+  <div style="background:white; padding:30px; border-radius:8px; text-align:center; box-shadow:0 3px 15px rgba(0,0,0,0.2); width:400px;">
+    <h1 style="font-size:22px; font-weight:bold; margin-bottom:20px;">Add New Location</h1>
+    <p>Click the button below to add the new location <strong>Podium Common Area</strong> to Firestore.</p>
+    <button onclick="addLocation()" style="margin-top:20px; padding:12px 25px; background:#3B82F6; color:white; border:none; border-radius:6px; font-size:16px; cursor:pointer;">
+      Add Location
+    </button>
+    <p id="progress" style="margin-top:20px; font-weight:bold; color:#333;">Progress will appear here...</p>
+  </div>
+</body>
+</html>
