@@ -18,166 +18,304 @@ const firebaseConfig = {
   appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
   measurementId: "G-4H7RF76176"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-
-const params = new URLSearchParams(window.location.search);
-const assetCodeParam = params.get('assetCode');
 
 const container = document.getElementById('mainContainer');
 const scanContainer = document.getElementById('scanContainer');
 const video = document.getElementById('video');
 const canvas = document.createElement('canvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d',{willReadFrequently:true});
 const startScanBtn = document.getElementById('startScan');
-const scanMessage = document.getElementById('scanMessage');
-const overlayLine = document.getElementById('overlayLine');
+const historyContainer = document.getElementById('historyContainer');
 
-async function fetchAsset(code){
-    try{
-        const q = query(collection(db,'assets'), where('assetCode','==',code));
-        const snapshot = await getDocs(q);
-        if(snapshot.empty){
-            container.innerHTML = `<p class="text-red-400 text-center text-lg mt-10">No asset found for code: <b>${code}</b></p>`;
-            return;
-        }
-        const asset = snapshot.docs[0].data();
-        displayAsset(asset);
-    } catch(e){
-        console.error(e);
-        container.innerHTML = `<p class="text-red-400 text-center mt-10">Failed to fetch asset data.</p>`;
-    }
+const params = new URLSearchParams(window.location.search);
+const assetCodeParam = params.get('assetCode');
+
+// Loading overlay
+const loadingOverlay = document.createElement('div');
+loadingOverlay.id = 'loadingOverlay';
+loadingOverlay.className = 'hidden fixed top-0 left-0 w-full h-full flex flex-col justify-center items-center gap-4 bg-black/70 z-50';
+loadingOverlay.innerHTML = `
+  <div class="w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+  <p class="text-gray-300 text-center">Loading...</p>
+`;
+document.body.appendChild(loadingOverlay);
+
+function showLoading(msg="Loading...") {
+  loadingOverlay.querySelector('p').textContent = msg;
+  loadingOverlay.classList.remove('hidden');
+}
+function hideLoading() { loadingOverlay.classList.add('hidden'); }
+
+// Extract asset code from QR URL
+function extractAssetCode(qrData) {
+  try {
+    const queryString = qrData.split('?')[1] || '';
+    const match = queryString.match(/ssetCode=([A-Z0-9-]+)/i);
+    return match ? match[1] : null;
+  } catch { return null; }
 }
 
-function displayAsset(a){
-    container.innerHTML = `
-    <div class="max-w-lg mx-auto mt-10 p-6 bg-gray-800 rounded-xl shadow-2xl text-white space-y-3 animate-fadeIn">
-      <h2 class="text-2xl font-bold text-cyan-400">${a.assetName} (${a.assetCode})</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <p><strong>Category:</strong> ${a.category}</p>
-        <p><strong>Location:</strong> ${a.location} (${a.locationShort||''})</p>
-        <p><strong>Manufacturer:</strong> ${a.manufacturer}</p>
-        <p><strong>Model:</strong> ${a.model || 'N/D'}</p>
-        <p><strong>Installed:</strong> ${a.installationDate || 'N/D'}</p>
-        <p><strong>AMC Vendor:</strong> ${a.amcVendor || 'N/D'}</p>
-        <p><strong>AMC Start:</strong> ${a.amcStart || 'N/D'}</p>
-        <p><strong>AMC End:</strong> ${a.amcEnd || 'N/D'}</p>
-        <p class="col-span-2"><strong>Remarks:</strong> ${a.remark || ''}</p>
-      </div>
-      <button onclick="startAgain()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded mt-4 w-full">Scan Again</button>
-    </div>
+// Calculate Asset Age
+function calculateAssetAge(installDateStr){
+  const installDate = new Date(installDateStr);
+  const now = new Date();
+  if(isNaN(installDate)) return '0d';
+  let years = now.getFullYear() - installDate.getFullYear();
+  let months = now.getMonth() - installDate.getMonth();
+  let days = now.getDate() - installDate.getDate();
+  if(days<0){ months--; days+=new Date(now.getFullYear(), now.getMonth(), 0).getDate(); }
+  if(months<0){ years--; months+=12; }
+  return `${years}y ${months}m ${days}d`;
+}
+
+
+// History functions
+function loadHistory() {
+  const hist = JSON.parse(localStorage.getItem('scanHistory')||'[]');
+  renderHistory(hist);
+}
+function saveToHistory(asset) {
+  const hist = JSON.parse(localStorage.getItem('scanHistory')||'[]');
+  const exists = hist.find(a=>a.assetCode===asset.assetCode);
+  if(!exists) {
+    hist.unshift({
+      assetCode: asset.assetCode,
+      assetName: asset.assetName,
+      installationDate: asset.installationDate || null,
+      amcEnd: asset.amcEnd || null,
+      scanDate: new Date().toISOString()
+    });
+    if(hist.length>10) hist.pop(); // limit history
+    localStorage.setItem('scanHistory', JSON.stringify(hist));
+    renderHistory(hist);
+  }
+}
+function renderHistory(hist){
+  if(hist.length===0){
+    historyContainer.innerHTML='<p class="text-gray-400 text-sm text-center">No scan history yet.</p>';
+    return;
+  }
+  historyContainer.innerHTML='';
+  hist.forEach((item,index)=>{
+    const div = document.createElement('div');
+    div.className='bg-gray-700/80 hover:bg-gray-600/90 cursor-pointer p-4 rounded-lg shadow-md animate-slideBounce mb-3 transition-all';
+    if(index===0) div.classList.add('border-2','border-cyan-400'); // highlight latest
+    
+    const assetAge = item.installationDate ? calculateAssetAge(item.installationDate) : 'N/A';
+    const amcStatus = item.amcEnd ? (new Date(item.amcEnd) >= new Date() ? 'Active' : 'Expired') : 'N/A';
+    const amcClass = item.amcEnd ? (new Date(item.amcEnd) >= new Date() ? 'text-green-400 font-semibold' : 'text-red-500 font-semibold') : 'text-gray-300 font-semibold';
+
+    div.innerHTML=`
+      <p class="font-semibold text-cyan-400">${item.assetName} (${item.assetCode})</p>
+      <p class="text-gray-300 text-sm"><strong>Age:</strong> ${assetAge} | <strong>AMC:</strong> <span class="${amcClass}">${amcStatus}</span></p>
+      <p class="text-gray-400 text-xs">Scanned: ${new Date(item.scanDate).toLocaleString()}</p>
     `;
+    div.onclick = ()=>fetchAsset(item.assetCode);
+    historyContainer.appendChild(div);
+  });
 }
 
-function startAgain(){
-    container.innerHTML = '';
-    scanContainer.classList.remove('hidden');
-    startCamera();
+// Fetch asset data
+async function fetchAsset(code){
+  showLoading("Fetching asset data...");
+  try{
+    const q = query(collection(db,'assets'), where('assetCode','==',code));
+    const snapshot = await getDocs(q);
+    if(snapshot.empty){
+      container.innerHTML = `<p class="text-red-400 text-center text-lg mt-10">No asset found for code: <b>${code}</b></p>`;
+      return;
+    }
+    const asset = snapshot.docs[0].data();
+    displayAsset(asset);
+    saveToHistory(asset);
+  } catch(e){
+    console.error(e);
+    container.innerHTML = `<p class="text-red-400 text-center mt-10">Failed to fetch asset data.</p>`;
+  } finally { hideLoading(); }
 }
 
-// QR Scan logic
+// Display asset data
+function displayAsset(a){
+  const age = a.installationDate ? calculateAssetAge(a.installationDate) : 'N/A';
+  container.innerHTML = `
+    <div class="max-w-md mx-auto mt-6 p-6 bg-gray-800/90 rounded-xl shadow-xl text-white space-y-3 animate-fadeIn">
+      <h2 class="text-2xl font-bold text-cyan-400 break-words">${a.assetName} (${a.assetCode})</h2>
+      <p><strong>Category:</strong> ${a.category}</p>
+      <p><strong>Location:</strong> ${a.location} (${a.locationShort||''})</p>
+      <p><strong>Manufacturer:</strong> ${a.manufacturer}</p>
+      <p><strong>Model:</strong> ${a.model || 'N/A'}</p>
+      <p><strong>Installed:</strong> ${a.installationDate || 'N/A'} | <strong>Age:</strong> ${age}</p>
+      <p><strong>AMC Vendor:</strong> ${a.amcVendor || 'N/A'}</p>
+      <p><strong>AMC Start:</strong> ${a.amcStart || 'N/A'} | <strong>End:</strong> ${a.amcEnd || 'N/A'}</p>
+      <p><strong>Remarks:</strong> ${a.remark || ''}</p>
+      <div class="flex gap-2 mt-4 flex-wrap">
+        <button onclick="exportCSV()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition-transform hover:scale-105">Export CSV</button>
+        <button onclick="exportJSON()" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded transition-transform hover:scale-105">Export JSON</button>
+        <button onclick="rescanQR()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition-transform hover:scale-105">Scan Another QR</button>
+      </div>
+    </div>
+
+    <!-- Second analysis card -->
+<div class="max-w-md mx-auto mt-4 p-6 bg-gray-700/90 rounded-xl shadow-lg text-white space-y-2 animate-fadeIn">
+  <h3 class="text-xl font-semibold text-cyan-300">Asset Summary & Analysis</h3>
+  <p><strong>AMC Status:</strong> 
+    <span class="${amcStatusClass(a.amcStart, a.amcEnd)}">
+      ${amcStatusText(a.amcStart, a.amcEnd)}
+    </span>
+  </p>
+  <p><strong>Asset Age:</strong> ${a.installationDate ? calculateAssetAge(a.installationDate) : 'N/A'}</p>
+</div>
+
+  `;
+  window.currentAsset=a;
+}
+
+// AMC status helpers
+function amcStatusText(startDate, endDate){
+  if(!startDate || !endDate || startDate==='N/A' || endDate==='N/A') return 'N/A';
+  return new Date(endDate) >= new Date() ? 'Active' : 'Expired';
+}
+function amcStatusClass(startDate,endDate){
+  if(!startDate || !endDate || startDate==='N/A' || endDate==='N/A') return 'text-gray-300 font-semibold';
+  return new Date(endDate) >= new Date() ? 'text-green-400 font-semibold' : 'text-red-500 font-semibold';
+}
+
+// Camera & QR scan
 async function startCamera(){
-    try{
-        scanMessage.textContent = "Initializing camera...";
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
-        video.srcObject = stream;
-        video.setAttribute('playsinline',true);
-        await video.play();
-        scanMessage.textContent = "Scanning for QR code...";
-        scanFrame();
-        animateOverlay();
-    } catch(e){
-        console.error(e);
-        container.innerHTML = `<p class="text-red-400 text-center mt-10">Camera access denied or not available.</p>`;
-    }
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
+    video.srcObject = stream;
+    video.setAttribute('playsinline',true);
+    await video.play();
+    scanFrame();
+  } catch(e){
+    console.error(e);
+    container.innerHTML = `<p class="text-red-400 text-center mt-10">Camera access denied or not available.</p>`;
+  }
 }
-
 async function scanFrame(){
-    if(video.readyState !== video.HAVE_ENOUGH_DATA){
-        requestAnimationFrame(scanFrame);
-        return;
-    }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video,0,0,canvas.width,canvas.height);
-    const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
-
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-    if(code){
-        scanMessage.textContent = "QR detected!";
-        video.srcObject.getTracks().forEach(track=>track.stop());
-        scanContainer.classList.add('hidden');
-
-        // If QR is URL, redirect
-        try {
-            const url = new URL(code.data);
-            window.location.href = url.href;
-            return;
-        } catch(e){
-            // Not URL, treat as assetCode
-        }
-        fetchAsset(code.data);
-    } else {
-        requestAnimationFrame(scanFrame);
-    }
+  if(video.readyState!==video.HAVE_ENOUGH_DATA){ requestAnimationFrame(scanFrame); return; }
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+  const code = jsQR(imageData.data,imageData.width,imageData.height);
+  if(code){
+    scanContainer.classList.add('border-4','border-green-500','p-1');
+    showLoading("QR detected! Fetching asset...");
+    video.srcObject.getTracks().forEach(track=>track.stop());
+    scanContainer.classList.add('hidden');
+    const assetCode = extractAssetCode(code.data);
+    if(assetCode) fetchAsset(assetCode);
+    else container.innerHTML=`<p class="text-red-400 text-center mt-10">Cannot extract asset code</p>`;
+  } else requestAnimationFrame(scanFrame);
 }
 
-// Scanner overlay animation
-function animateOverlay(){
-    let pos = 0, dir = 1;
-    const height = overlayLine.parentElement.clientHeight;
-    function frame(){
-        pos += dir*2;
-        if(pos>=height-4 || pos<=0) dir*=-1;
-        overlayLine.style.top = pos+"px";
-        requestAnimationFrame(frame);
-    }
-    frame();
-}
-
-startScanBtn.onclick = () => {
-    scanContainer.classList.remove('hidden');
-    container.innerHTML = '';
-    startCamera();
+// Scan button
+startScanBtn.onclick = ()=>{
+  scanContainer.classList.remove('hidden');
+  container.innerHTML='';
+  scanContainer.classList.remove('border-4','border-green-500','p-1');
+  startCamera();
 };
 
-// Auto-fetch if URL has assetCode
-if(assetCodeParam){
-    fetchAsset(assetCodeParam);
-} else {
-    scanContainer.classList.remove('hidden');
+// Export & rescan
+function exportCSV(){
+  if(!window.currentAsset) return alert("No asset to export");
+  const a = window.currentAsset;
+  const headers = Object.keys(a);
+  const rows=[headers.map(h=>`"${h}"`).join(",")];
+  rows.push(headers.map(h=>`"${a[h]}"`).join(","));  
+  const blob = new Blob([rows.join("\n")],{type:'text/csv'});
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download=`${a.assetCode}.csv`;
+  link.click();
 }
+function exportJSON(){
+  if(!window.currentAsset) return alert("No asset to export");
+  const blob = new Blob([JSON.stringify(window.currentAsset,null,2)],{type:'application/json'});
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download=`${window.currentAsset.assetCode}.json`;
+  link.click();
+}
+function rescanQR(){
+  container.innerHTML='';
+  scanContainer.classList.remove('hidden','border-4','border-green-500','p-1');
+  startCamera();
+}
+
+// Expose globally
+window.exportCSV=exportCSV;
+window.exportJSON=exportJSON;
+window.rescanQR=rescanQR;
+
+// Auto-fetch asset if URL has code
+if(assetCodeParam) fetchAsset(assetCodeParam);
+else scanContainer.classList.remove('hidden');
+
+// Load scan history on page load
+loadHistory();
+
 </script>
 
+<!-- Tailwind & jsQR -->
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
 <style>
 body { background: linear-gradient(135deg,#0f172a,#1e293b); min-height:100vh; }
 button { transition: all 0.2s; }
 button:hover { transform: scale(1.05); }
-#scanContainer { position: relative; max-width:400px; width:100%; }
-#video { border-radius:1rem; }
-#overlay { position:absolute; top:0; left:0; width:100%; height:100%; border:3px dashed cyan; border-radius:1rem; pointer-events:none; box-sizing:border-box; }
-#overlayLine { position:absolute; left:0; width:100%; height:4px; background:cyan; pointer-events:none; }
 .animate-fadeIn { animation: fadeIn 0.5s ease forwards; }
-@keyframes fadeIn { from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:translateY(0);} }
+@keyframes fadeIn { from {opacity:0; transform: translateY(10px);} to {opacity:1; transform: translateY(0);} }
+
+/* Bounce + slide for history cards */
+@keyframes slideBounce {
+  0% { opacity:0; transform: translateX(100%) scale(0.8); }
+  60% { opacity:1; transform: translateX(-10%) scale(1.05); }
+  80% { transform: translateX(5%) scale(1); }
+  100% { transform: translateX(0) scale(1); }
+}
+.animate-slideBounce { animation: slideBounce 0.5s ease forwards; }
+
+/* Warning icon animation */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+.warn-icon { display:inline-block; color:#f87171; margin-right:0.3rem; animation:pulse 1s infinite; }
+
+/* Mobile improvements */
+#mainContainer { word-break: break-word; margin-bottom:1rem; }
+video { max-height: 50vh; border-radius:1rem; }
+#scanContainer { transition: all 0.3s; }
+#historyContainer { max-width:400px; width:95%; margin-top:1rem; }
+@media(max-width:640px){
+  .max-w-md { max-width: 95%; }
+  #scanContainer button { width: 100%; }
+}
 </style>
 </head>
 <body class="text-white flex flex-col items-center p-4">
-    <h1 class="text-3xl font-bold mb-6 text-cyan-400 text-center">Asset Scanner</h1>
+<h1 class="text-3xl font-bold mb-2 text-cyan-400 text-center">Asset Scanner</h1>
+<p class="text-gray-300 text-sm mb-4 text-center">
+  <span class="warn-icon">⚠</span>
+  Scan history is stored locally. 
+  <span class="text-red-500 font-semibold">Clearing browser data will remove history.</span>
+</p>
 
-    <div id="scanContainer" class="flex flex-col items-center gap-4 hidden">
-        <div class="relative w-full">
-            <video id="video" class="w-full max-w-md rounded shadow-lg border-2 border-cyan-500"></video>
-            <div id="overlay"></div>
-            <div id="overlayLine"></div>
-        </div>
-        <p id="scanMessage" class="text-gray-300 text-sm text-center">Align QR code within the scanner frame</p>
-        <button id="startScan" class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded mt-2">Start Camera Scan</button>
-    </div>
+<div id="scanContainer" class="flex flex-col items-center gap-4 hidden">
+    <video id="video" class="w-full max-w-md rounded shadow-lg border-2 border-cyan-500"></video>
+    <button id="startScan" class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded mt-2">Start Camera Scan</button>
+    <p class="text-gray-300 text-sm text-center">Align QR code within the camera view</p>
+</div>
 
-    <div id="mainContainer" class="w-full"></div>
+<div id="historyContainer" class="w-full"></div>
+<div id="mainContainer" class="w-full"></div>
 </body>
 </html>
