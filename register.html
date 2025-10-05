@@ -22,22 +22,26 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-
-// Store locations globally
 let locations = [];
+
+// Helper log function
+function log(msg){ 
+  console.log(`[AssetReg] ${msg}`); 
+}
 
 // Fetch dropdown options
 async function fetchOptions(subcollection) {
   const colRef = collection(db, 'dropdowns', 'options', subcollection);
   const snapshot = await getDocs(colRef);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  log(`Fetched ${data.length} options for ${subcollection}`);
+  return data;
 }
 
 // Populate dropdowns
 async function populateDropdown(id, subcollection) {
   let options = await fetchOptions(subcollection);
 
-  // Sort location properly
   if(subcollection === 'locations'){
     options.sort((a,b)=>{
       const [blockA,floorA] = a.name.match(/[A-Za-z]+|[0-9]+/g);
@@ -45,7 +49,8 @@ async function populateDropdown(id, subcollection) {
       if(blockA !== blockB) return blockA.localeCompare(blockB);
       return parseInt(floorA)-parseInt(floorB);
     });
-    locations = options; // save globally
+    locations = options; 
+    log(`Locations sorted & stored globally`);
     return;
   }
 
@@ -57,6 +62,7 @@ async function populateDropdown(id, subcollection) {
     optionEl.textContent = opt.name;
     select.appendChild(optionEl);
   });
+  log(`Dropdown ${id} populated`);
 }
 
 // Add new dropdown item
@@ -68,12 +74,12 @@ async function addNewItem(subcollection, dropdownId) {
 
   if(existingOptions.find(opt => opt.name.toLowerCase() === newName.toLowerCase())){
     alert(`${newName} already exists!`);
+    log(`Attempted to add duplicate ${newName}`);
     return;
   }
 
   let newObj = { name: newName };
 
-  // Asset Name auto short code (3 letters)
   if(subcollection === "assetNames"){
     let words = newName.split(/\s+/);
     let short = words.map(w => w[0].toUpperCase()).join('');
@@ -96,6 +102,7 @@ async function addNewItem(subcollection, dropdownId) {
 
   await addDoc(collection(db, 'dropdowns', 'options', subcollection), newObj);
   alert(`${newName} added${newObj.short ? ` with short code ${newObj.short}` : ''}`);
+  log(`New item added in ${subcollection}: ${newName}`);
   await populateDropdown(dropdownId, subcollection);
 }
 
@@ -104,7 +111,9 @@ async function generateAssetCode(assetShort, locationShort){
   const q = query(collection(db, 'assets'), where('assetShort','==',assetShort));
   const snapshot = await getDocs(q);
   const count = snapshot.size + 1;
-  return `AO-${assetShort}-${locationShort}-${count.toString().padStart(3,'0')}`;
+  const code = `AO-${assetShort}-${locationShort}-${count.toString().padStart(3,'0')}`;
+  log(`Generated Asset Code: ${code}`);
+  return code;
 }
 
 // Update generated asset code
@@ -121,6 +130,7 @@ async function updateGeneratedCode() {
 
 // Submit asset
 async function submitAsset(){
+  log("Submitting asset...");
   document.getElementById('loadingOverlay').style.display = 'flex';
 
   const assetSel = document.getElementById('assetName').value ? JSON.parse(document.getElementById('assetName').value) : null;
@@ -137,10 +147,10 @@ async function submitAsset(){
   if(!assetSel || !categorySel || !manufacturerSel || !modelSel || !installationDate || !locationSel || !amcVendor || !remarkSel){
     alert("Please fill all mandatory fields.");
     document.getElementById('loadingOverlay').style.display = 'none';
+    log("Submission cancelled: mandatory fields missing");
     return;
   }
 
-  // Optional AMC dates
   const amcStartVal = amcStart || "N/A";
   const amcEndVal = amcEnd || "N/A";
 
@@ -162,6 +172,8 @@ async function submitAsset(){
     amcEnd: amcEndVal
   });
 
+  log("Asset successfully added to database");
+
   alert(`Asset Registered! Code: ${assetCode}`);
   document.getElementById('assetForm').reset();
   document.getElementById('generatedCode').textContent = "";
@@ -170,13 +182,14 @@ async function submitAsset(){
   document.getElementById('loadingOverlay').style.display = 'none';
 }
 
+// Location dropdown filter
 function setupLocationDropdown(){
   const input = document.getElementById('locationInput');
   const dropdown = document.getElementById('locationDropdown');
 
   function filterLocations(){
     const value = input.value.toLowerCase().trim();
-    const parts = value.split(/\s+/); // split by space
+    const parts = value.split(/\s+/);
     const filtered = locations.filter(loc => {
       const locStr = loc.name.toLowerCase().replace(/\s+/g, '');
       return parts.every(p => locStr.includes(p.replace(/\s+/g, '')));
@@ -199,6 +212,7 @@ function setupLocationDropdown(){
         input.dataset.selectedValue = JSON.stringify(loc);
         dropdown.classList.add('hidden');
         updateGeneratedCode();
+        log(`Location selected: ${loc.name}`);
       };
       dropdown.appendChild(li);
     });
@@ -221,7 +235,7 @@ function setupLocationDropdown(){
   });
 }
 
-// Load dropdowns
+// On page load
 window.addEventListener('DOMContentLoaded', async () => {
   await populateDropdown('assetName','assetNames');
   await populateDropdown('category','categories');
@@ -234,10 +248,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   setupLocationDropdown();
 });
 
+// Attach functions to window for inline buttons
 window.addNewItem = addNewItem;
 window.submitAsset = submitAsset;
 window.updateGeneratedCode = updateGeneratedCode;
+
 </script>
+
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 body {
@@ -246,106 +263,109 @@ body {
 </style>
 </head>
 <body class="flex flex-col items-center justify-start min-h-screen p-4 text-white">
-  <!-- Mobile Back Button -->
-  <div class="fixed back-btn-mobile z-50 md:hidden">
-    <a href="dashboard.html" class="flex items-center gap-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold shadow-lg text-sm">
-      ⮐ Back
-    </a>
+
+<!-- Mobile Back Button -->
+<div class="fixed back-btn-mobile z-50 md:hidden">
+  <a href="dashboard.html" class="flex items-center gap-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold shadow-lg text-sm">
+    ⮐ Back
+  </a>
+</div>
+
+<div class="w-full max-w-xl relative">
+  <div class="bg-gradient-to-b from-[#010d23] to-[#011e50] p-8 rounded shadow-md w-full">
+    <h1 class="text-2xl font-bold mb-6 text-center text-blue-300">Asset Registration</h1>
+
+    <form id="assetForm" class="space-y-4" onsubmit="event.preventDefault(); submitAsset();">
+
+      <!-- Asset Name -->
+      <div>
+        <label class="block font-medium mb-1">Asset Name</label>
+        <div class="flex space-x-2">
+          <select id="assetName" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
+          <button type="button" onclick="addNewItem('assetNames','assetName')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
+        </div>
+      </div>
+
+      <!-- Category -->
+      <div>
+        <label class="block font-medium mb-1">Category</label>
+        <div class="flex space-x-2">
+          <select id="category" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
+          <button type="button" onclick="addNewItem('categories','category')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
+        </div>
+      </div>
+
+      <!-- Manufacturer -->
+      <div>
+        <label class="block font-medium mb-1">Manufacturer</label>
+        <div class="flex space-x-2">
+          <select id="manufacturer" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
+          <button type="button" onclick="addNewItem('manufacturers','manufacturer')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
+        </div>
+      </div>
+
+      <!-- Model / Serial No -->
+      <div>
+        <label class="block font-medium mb-1">Model / Serial No</label>
+        <div class="flex space-x-2">
+          <select id="model" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
+          <button type="button" onclick="addNewItem('models','model')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
+        </div>
+      </div>
+
+      <!-- Installation Date -->
+      <div>
+        <label class="block font-medium mb-1">Installation Date</label>
+        <input type="date" id="installationDate" class="border p-2 w-full rounded bg-[#011a3b] text-white">
+      </div>
+
+      <!-- Location -->
+      <div class="relative">
+        <label class="block font-medium mb-1">Location</label>
+        <input type="text" id="locationInput" class="border p-2 w-full rounded bg-[#011a3b] text-white" placeholder="Select location">
+        <ul id="locationDropdown" class="absolute z-50 w-full bg-[#011a3b] text-white border rounded max-h-48 overflow-y-auto hidden"></ul>
+      </div>
+
+      <!-- AMC Vendor -->
+      <div>
+        <label class="block font-medium mb-1">AMC Vendor</label>
+        <input type="text" id="amcVendor" placeholder="Enter AMC Vendor" class="border p-2 w-full rounded bg-[#011a3b] text-white">
+      </div>
+
+      <!-- Remarks -->
+      <div>
+        <label class="block font-medium mb-1">Remarks</label>
+        <div class="flex space-x-2">
+          <select id="remarks" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
+          <button type="button" onclick="addNewItem('remarks','remarks')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
+        </div>
+      </div>
+
+      <!-- AMC Dates -->
+      <div class="flex flex-col md:flex-row md:space-x-2">
+        <div class="flex-1">
+          <label class="block font-medium mb-1">AMC Start Date</label>
+          <input type="date" id="amcStart" class="border p-2 w-full rounded bg-[#011a3b] text-white">
+        </div>
+        <div class="flex-1">
+          <label class="block font-medium mb-1">AMC End Date</label>
+          <input type="date" id="amcEnd" class="border p-2 w-full rounded bg-[#011a3b] text-white">
+        </div>
+      </div>
+
+      <!-- Generated Asset Code -->
+      <div id="generatedCode" class="text-center font-bold text-lg mb-4 text-blue-300"></div>
+
+      <!-- Submit -->
+      <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded font-bold hover:bg-blue-700">Register Asset</button>
+
+    </form>
   </div>
 
-  <div class="w-full max-w-xl relative">
-    <div class="bg-gradient-to-b from-[#010d23] to-[#011e50] p-8 rounded shadow-md w-full">
-      <h1 class="text-2xl font-bold mb-6 text-center text-blue-300">Asset Registration</h1>
-      <form id="assetForm" class="space-y-4" onsubmit="event.preventDefault(); submitAsset();">
-
-        <!-- Asset Name -->
-        <div>
-          <label class="block font-medium mb-1">Asset Name</label>
-          <div class="flex space-x-2">
-            <select id="assetName" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
-            <button type="button" onclick="addNewItem('assetNames','assetName')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
-          </div>
-        </div>
-
-        <!-- Category -->
-        <div>
-          <label class="block font-medium mb-1">Category</label>
-          <div class="flex space-x-2">
-            <select id="category" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
-            <button type="button" onclick="addNewItem('categories','category')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
-          </div>
-        </div>
-
-        <!-- Manufacturer -->
-        <div>
-          <label class="block font-medium mb-1">Manufacturer</label>
-          <div class="flex space-x-2">
-            <select id="manufacturer" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
-            <button type="button" onclick="addNewItem('manufacturers','manufacturer')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
-          </div>
-        </div>
-
-        <!-- Model/Serial No -->
-        <div>
-          <label class="block font-medium mb-1">Model / Serial No</label>
-          <div class="flex space-x-2">
-            <select id="model" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
-            <button type="button" onclick="addNewItem('models','model')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
-          </div>
-        </div>
-
-        <!-- Installation Date -->
-        <div>
-          <label class="block font-medium mb-1">Installation Date</label>
-          <input type="date" id="installationDate" class="border p-2 w-full rounded bg-[#011a3b] text-white">
-        </div>
-
-        <!-- Location -->
-        <div class="relative">
-          <label class="block font-medium mb-1">Location</label>
-          <input type="text" id="locationInput" class="border p-2 w-full rounded bg-[#011a3b] text-white" placeholder="Select location">
-          <ul id="locationDropdown" class="absolute z-50 w-full bg-[#011a3b] text-white border rounded max-h-48 overflow-y-auto hidden"></ul>
-        </div>
-
-        <!-- AMC Vendor -->
-        <div>
-          <label class="block font-medium mb-1">AMC Vendor</label>
-          <input type="text" id="amcVendor" placeholder="Enter AMC Vendor" class="border p-2 w-full rounded bg-[#011a3b] text-white">
-        </div>
-
-        <!-- Remarks -->
-        <div>
-          <label class="block font-medium mb-1">Remarks</label>
-          <div class="flex space-x-2">
-            <select id="remarks" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
-            <button type="button" onclick="addNewItem('remarks','remarks')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
-          </div>
-        </div>
-
-        <!-- AMC Start/End -->
-        <div class="flex flex-col md:flex-row md:space-x-2">
-          <div class="flex-1">
-            <label class="block font-medium mb-1">AMC Start Date</label>
-            <input type="date" id="amcStart" class="border p-2 w-full rounded bg-[#011a3b] text-white">
-          </div>
-          <div class="flex-1">
-            <label class="block font-medium mb-1">AMC End Date</label>
-            <input type="date" id="amcEnd" class="border p-2 w-full rounded bg-[#011a3b] text-white">
-          </div>
-        </div>
-
-        <!-- Generated Asset Code -->
-        <div id="generatedCode" class="text-center font-bold text-lg mb-4 text-blue-300"></div>
-
-        <!-- Submit -->
-        <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded font-bold hover:bg-blue-700">Register Asset</button>
-      </form>
-    </div>
-
-    <!-- Loading overlay -->
-    <div id="loadingOverlay" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xl hidden">
-      Registering asset...
-    </div>
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xl hidden">
+    Registering asset...
   </div>
+</div>
 </body>
 </html>

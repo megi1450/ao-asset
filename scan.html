@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asset Scanner</title>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
+  authDomain: "ao-asset.firebaseapp.com",
+  projectId: "ao-asset",
+  storageBucket: "ao-asset.firebasestorage.app",
+  messagingSenderId: "406786910363",
+  appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
+  measurementId: "G-4H7RF76176"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const params = new URLSearchParams(window.location.search);
+const assetCodeParam = params.get('assetCode');
+
+const container = document.getElementById('mainContainer');
+const scanContainer = document.getElementById('scanContainer');
+const video = document.getElementById('video');
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+const startScanBtn = document.getElementById('startScan');
+
+// Fetch asset from Firestore
+async function fetchAsset(code){
+    try{
+        const q = query(collection(db,'assets'), where('assetCode','==',code));
+        const snapshot = await getDocs(q);
+        if(snapshot.empty){
+            container.innerHTML = `<p class="text-red-400 text-center text-lg mt-10">No asset found for code: <b>${code}</b></p>`;
+            return;
+        }
+        const asset = snapshot.docs[0].data();
+        displayAsset(asset);
+    } catch(e){
+        console.error(e);
+        container.innerHTML = `<p class="text-red-400 text-center mt-10">Failed to fetch asset data.</p>`;
+    }
+}
+
+// Display asset info
+function displayAsset(a){
+    container.innerHTML = `
+    <div class="max-w-md mx-auto mt-10 p-6 bg-gray-800 rounded shadow-lg text-white space-y-2">
+      <h2 class="text-2xl font-bold text-cyan-400">${a.assetName} (${a.assetCode})</h2>
+      <p><strong>Category:</strong> ${a.category}</p>
+      <p><strong>Location:</strong> ${a.location} (${a.locationShort||''})</p>
+      <p><strong>Manufacturer:</strong> ${a.manufacturer}</p>
+      <p><strong>Model:</strong> ${a.model || 'N/D'}</p>
+      <p><strong>Installed:</strong> ${a.installationDate || 'N/D'}</p>
+      <p><strong>AMC Vendor:</strong> ${a.amcVendor || 'N/D'}</p>
+      <p><strong>AMC Start:</strong> ${a.amcStart || 'N/D'} | <strong>End:</strong> ${a.amcEnd || 'N/D'}</p>
+      <p><strong>Remarks:</strong> ${a.remark || ''}</p>
+    </div>
+    `;
+}
+
+// Start camera and scan QR
+async function startCamera(){
+    try{
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
+        video.srcObject = stream;
+        video.setAttribute('playsinline',true);
+        await video.play();
+        scanFrame();
+    } catch(e){
+        console.error(e);
+        container.innerHTML = `<p class="text-red-400 text-center mt-10">Camera access denied or not available.</p>`;
+    }
+}
+
+function scanFrame(){
+    if(video.readyState !== video.HAVE_ENOUGH_DATA){
+        requestAnimationFrame(scanFrame);
+        return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+    
+    const code = jsQR(imageData.data, imageData.width, imageData.height); // <- global jsQR
+
+    if(code){
+        // Stop camera
+        video.srcObject.getTracks().forEach(track=>track.stop());
+        scanContainer.classList.add('hidden');
+        fetchAsset(code.data);
+    } else {
+        requestAnimationFrame(scanFrame);
+    }
+}
+
+startScanBtn.onclick = () => {
+    scanContainer.classList.remove('hidden');
+    container.innerHTML = '';
+    startCamera();
+};
+
+// Auto-fetch if URL has assetCode
+if(assetCodeParam){
+    fetchAsset(assetCodeParam);
+} else {
+    scanContainer.classList.remove('hidden');
+}
+</script>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script> <!-- Correct global jsQR -->
+<style>
+body { background: linear-gradient(135deg,#0f172a,#1e293b); min-height:100vh; }
+button { transition: all 0.2s; }
+button:hover { transform: scale(1.05); }
+</style>
+</head>
+<body class="text-white flex flex-col items-center p-4">
+    <h1 class="text-3xl font-bold mb-6 text-cyan-400 text-center">Asset Scanner</h1>
+
+    <div id="scanContainer" class="flex flex-col items-center gap-4 hidden">
+        <video id="video" class="w-full max-w-md rounded shadow-lg border-2 border-cyan-500"></video>
+        <button id="startScan" class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded mt-2">Start Camera Scan</button>
+        <p class="text-gray-300 text-sm text-center">Align QR code within the camera view</p>
+    </div>
+
+    <div id="mainContainer" class="w-full"></div>
+</body>
+</html>
