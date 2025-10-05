@@ -5,7 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="logo.jpg">
 <title>Filter Assets - Modern UI</title>
+<style>
+  #qrCodeContainer {
+  display: flex;
+  justify-content: center; /* centers horizontally */
+  margin-bottom: 10px;
+}
 
+</style>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
@@ -259,56 +266,105 @@ function exportJSON() {
 // QR Modal functions — REPLACE your current openQRModal function
 function openQRModal(assetId) {
   const asset = allAssets.find(a => a.id === assetId);
-  if(!asset) return;
+  if (!asset) return;
 
   const container = document.getElementById('qrCodeContainer');
-  container.innerHTML = '';
+  container.innerHTML = ''; // clear previous QR
 
-  // Generate a URL pointing to scan.html with asset details
-  const url = `${window.location.origin}/scan.html?assetCode=${encodeURIComponent(asset.assetCode)}&assetName=${encodeURIComponent(asset.assetName)}`;
+  // Create QR element in center
+  const qrDiv = document.createElement('div');
+  qrDiv.style.display = 'flex';
+  qrDiv.style.flexDirection = 'column';
+  qrDiv.style.alignItems = 'center';
+  qrDiv.style.padding = '15px';
+  qrDiv.style.border = '3px solid black'; // black border
+  qrDiv.style.borderRadius = '12px';
+  qrDiv.style.backgroundColor = '#ffffff'; // white background
+  container.appendChild(qrDiv);
 
-  // Create QR code with the URL
-  new QRCode(container, {
-    text: url,
+  new QRCode(qrDiv, {
+    text: `${window.location.origin}/scan.html?assetCode=${encodeURIComponent(asset.assetCode)}&assetName=${encodeURIComponent(asset.assetName)}`,
     width: 220,
     height: 220,
-    colorDark:"#000000",
-    colorLight:"#ffffff",
+    colorDark: "#000000",
+    colorLight: "#ffffff",
     correctLevel: QRCode.CorrectLevel.H
   });
 
+  // Asset code below QR
+  const codeLabel = document.createElement('div');
+  codeLabel.textContent = asset.assetCode;
+  codeLabel.style.color = 'black'; // black text
+  codeLabel.style.fontWeight = 'bold';
+  codeLabel.style.fontSize = '18px';
+  codeLabel.style.marginTop = '8px';
+  qrDiv.appendChild(codeLabel);
+
   document.getElementById('qrModal').classList.remove('hidden');
 
-  // Download QR
+  function createCombinedCanvas() {
+    const qrCanvas = qrDiv.querySelector('canvas');
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+
+    const padding = 15;
+    const codeHeight = 30;
+
+    tempCanvas.width = qrCanvas.width + padding * 2;
+    tempCanvas.height = qrCanvas.height + codeHeight + padding * 2;
+
+    // White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    // Draw QR
+    ctx.drawImage(qrCanvas, padding, padding);
+
+    // Draw asset code
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(asset.assetCode, tempCanvas.width / 2, qrCanvas.height + padding + 22);
+
+    // Black border
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    return tempCanvas;
+  }
+
+  // Download, print, share
   document.getElementById('downloadQR').onclick = () => {
-    const canvas = container.querySelector('canvas');
+    const tempCanvas = createCombinedCanvas();
     const link = document.createElement('a');
-    link.href = canvas.toDataURL();
+    link.href = tempCanvas.toDataURL();
     link.download = `${asset.assetCode}.png`;
     link.click();
   };
 
-  // Print QR
   document.getElementById('printQR').onclick = () => {
-    const canvas = container.querySelector('canvas');
+    const tempCanvas = createCombinedCanvas();
     const w = window.open('');
-    w.document.write(`<img src="${canvas.toDataURL()}" />`);
+    w.document.write(`<img src="${tempCanvas.toDataURL()}" />`);
     w.print();
     w.close();
   };
 
-  // Share QR (if supported)
   document.getElementById('shareQR').onclick = async () => {
     try {
-      const canvas = container.querySelector('canvas');
-      const blob = await new Promise(res => canvas.toBlob(res));
+      const tempCanvas = createCombinedCanvas();
+      const blob = await new Promise(res => tempCanvas.toBlob(res));
       const filesArray = [new File([blob], `${asset.assetCode}.png`, { type: 'image/png' })];
       if (navigator.canShare && navigator.canShare({ files: filesArray })) {
         await navigator.share({ files: filesArray, title: 'Asset QR Code' });
       } else alert('Sharing not supported');
-    } catch(e) { alert('Failed to share'); }
+    } catch (e) {
+      alert('Failed to share');
+    }
   };
 }
+
 
 
 function closeQRModal() { document.getElementById('qrModal').classList.add('hidden'); }
@@ -327,7 +383,79 @@ window.openQRModal = openQRModal;
 window.closeQRModal = closeQRModal;
 
 window.addEventListener('DOMContentLoaded', fetchAssets);
+
+async function downloadAllQRCodesAsZip() {
+  if (!currentFilteredAssets.length) return alert("No assets to download");
+
+  const zip = new JSZip();
+
+  for (let asset of currentFilteredAssets) {
+    // Create QR canvas like before
+    const tempDiv = document.createElement('div');
+    tempDiv.style.display = 'flex';
+    tempDiv.style.flexDirection = 'column';
+    tempDiv.style.alignItems = 'center';
+    tempDiv.style.padding = '15px';
+    tempDiv.style.border = '3px solid black';
+    tempDiv.style.borderRadius = '12px';
+    tempDiv.style.backgroundColor = '#ffffff';
+
+    new QRCode(tempDiv, {
+      text: `${window.location.origin}/scan.html?assetCode=${encodeURIComponent(asset.assetCode)}&assetName=${encodeURIComponent(asset.assetName)}`,
+      width: 220,
+      height: 220,
+      colorDark: "#000000",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.H
+    });
+
+    const codeLabel = document.createElement('div');
+    codeLabel.textContent = asset.assetCode;
+    codeLabel.style.fontWeight = 'bold';
+    codeLabel.style.fontSize = '18px';
+    codeLabel.style.marginTop = '8px';
+    tempDiv.appendChild(codeLabel);
+
+    await new Promise(res => setTimeout(res, 50)); // wait for QR to render
+    const qrCanvas = tempDiv.querySelector('canvas');
+
+    const padding = 15;
+    const codeHeight = 30;
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+    tempCanvas.width = qrCanvas.width + padding * 2;
+    tempCanvas.height = qrCanvas.height + codeHeight + padding * 2;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    ctx.drawImage(qrCanvas, padding, padding);
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(asset.assetCode, tempCanvas.width / 2, qrCanvas.height + padding + 22);
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    // Convert canvas to blob
+    const blob = await new Promise(res => tempCanvas.toBlob(res, 'image/png'));
+    zip.file(`${asset.assetCode}.png`, blob);
+  }
+
+const content = await zip.generateAsync({ type: "blob" });
+saveAs(content, "All_QR_Codes.zip");  // download starts here
+// Alert after ZIP is fully generated
+alert("All QR codes downloaded in a ZIP file!");
+
+}
+
+// Attach to button
+document.getElementById('downloadAllQR').onclick = downloadAllQRCodesAsZip;
+
+
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -373,6 +501,8 @@ button:hover { transform: scale(1.03); }
   <div class="flex flex-wrap gap-2 mb-4">
     <button onclick="exportCSV()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">Export CSV</button>
     <button onclick="exportJSON()" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">Export JSON</button>
+    <button id="downloadAllQR" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded">Download All QR Codes</button>
+
   </div>
 
   <!-- Summary -->
@@ -445,7 +575,8 @@ button:hover { transform: scale(1.03); }
 <div id="qrModal" class="hidden fixed inset-0 modal-bg flex items-center justify-center z-50 p-4">
   <div class="bg-gray-800 p-6 rounded shadow-lg w-full max-w-sm relative text-center">
     <h2 class="text-xl font-bold mb-4 text-cyan-400">QR Code</h2>
-    <div id="qrCodeContainer" class="mx-auto mb-4"></div>
+    <div id="qrCodeContainer" class="mx-auto mb-2"></div>
+    <p id="qrAssetCode" style="font-weight: bold; font-size: 18px; margin-top: 10px; text-align: center;"></p>
     <div class="flex justify-around gap-2 mb-2 flex-wrap">
       <button id="downloadQR" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded">Download</button>
       <button id="printQR" class="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded">Print</button>
@@ -454,6 +585,7 @@ button:hover { transform: scale(1.03); }
     <button onclick="closeQRModal()" class="absolute top-2 right-2 bg-red-600 px-2 py-1 rounded">X</button>
   </div>
 </div>
+
 
 </body>
 </html>

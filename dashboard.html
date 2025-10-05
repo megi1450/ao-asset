@@ -174,10 +174,12 @@ window.addEventListener('DOMContentLoaded', loadDashboard);
 
     <!-- Asset Category -->
     <div class="bg-primary/50 border border-white/20 glass-card p-4 flex flex-col items-center shadow-lg hover:shadow-xl transition-all">
-      <h3 class="text-accent font-semibold mb-4">Assets</h3>
-      <button onclick="window.location.href='register.html'" class="btn w-36 sm:w-full mb-3">Register Asset</button>
-      <button onclick="window.location.href='filterasset.html'" class="btn w-36 sm:w-full">View Assets</button>
-    </div>
+  <h3 class="text-accent font-semibold mb-4">Assets</h3>
+  <button onclick="window.location.href='register.html'" class="btn w-36 sm:w-full mb-3">Register Asset</button>
+  <button onclick="window.location.href='filterasset.html'" class="btn w-36 sm:w-full mb-3">View Assets</button>
+  <button onclick="window.location.href='filterasset.html'" class="btn w-36 sm:w-full">Asset Scanner</button>
+</div>
+
 
     <!-- Energy Category -->
     <div class="bg-primary/45 border border-white/20 glass-card p-4 flex flex-col items-center shadow-lg hover:shadow-xl transition-all">
@@ -230,6 +232,11 @@ window.addEventListener('DOMContentLoaded', loadDashboard);
   <canvas id="blockChart" class="h-52"></canvas>
 </div>
 
-<p class="text-xs text-soft mt-6">© 2025 AO Asset Systems. Dynamic, compact, and interactive.</p>
+        <div class="w-full flex flex-col items-center justify-center mt-6">
+          <p class="text-xs text-soft text-center">
+            © 2025 AO Asset And Facility Management System.<br>
+            All Rights Reserved.
+          </p>
+        </div>
 </body>
 </html>
