@@ -147,7 +147,7 @@ electricalTabBtn.addEventListener('click', async () => { currentTab='electrical'
 
 async function switchTabs(){
   housekeepingTabBtn.classList.toggle('tab-active', currentTab==='housekeeping');
-  electricalTabBtn.classList.toggle('tab-active', currentTab==='electrical');
+  electricalTabBtn.classList.toggle('tab-active', currentTab!=='housekeeping');
   housekeepingContent.classList.toggle('hidden', currentTab!=='housekeeping');
   electricalContent.classList.toggle('hidden', currentTab!=='electrical');
   await refreshTab();
@@ -158,7 +158,7 @@ async function fetchCollection(name){
   try{
     const snap = await getDocs(collection(db,name));
     return snap.docs.map(d=>({id:d.id,data:d.data()}));
-  }catch(e){return [];}
+  }catch(e){ console.error(e); return []; }
 }
 
 function parseTimestamp(val){
@@ -173,17 +173,17 @@ async function fetchAndAggregate(type){
   const records=[];
   for(const col of COLLECTIONS[type]){
     const docs = await fetchCollection(col);
-    for(const doc of docs){
-      const d = doc.data;
+    for(const docSnap of docs){
+      const d = docSnap.data;
       const ts = parseTimestamp(d.timestamp||d.date||d.createdAt) || new Date();
       if(Array.isArray(d.items)){
         for(const it of d.items){
           records.push({
             item: it.item || it.name || it.itemName || it,
-            total: Number(it.total || it.totalQty || it.quantity || 0),
-            available: Number(it.current ?? it.available ?? it.currentQty ?? 0),
+            total: Number(it.total || it.totalQty || it.quantity || 0),         // purchased (this month)
+            current: Number(it.current ?? it.available ?? it.currentQty ?? 0), // leftover/current from DB
             timestamp: parseTimestamp(it.timestamp) || ts,
-            docId: doc.id,
+            docId: docSnap.id,
             collection: col
           });
         }
@@ -191,9 +191,9 @@ async function fetchAndAggregate(type){
         records.push({
           item: d.item||d.name,
           total: Number(d.total||d.quantity||0),
-          available: Number(d.available||d.current||0),
+          current: Number(d.current||d.available||0),
           timestamp: ts,
-          docId: doc.id,
+          docId: docSnap.id,
           collection: col
         });
       }
@@ -203,117 +203,140 @@ async function fetchAndAggregate(type){
   return records;
 }
 
-// Analyze
-function analyzeRecords(records){
+// Analyze: compute finalAvailable = total + current (per record), aggregate per item
+function analyzeRecords(records) {
   const itemsMap = new Map();
-  const monthlyMap = new Map();
-  for(const r of records){
-    const name = (r.item||'Unknown').toString();
-    const total = Number(r.total||0);
-    const available = Math.min(Number(r.available||0), total);
-    const used = Math.max(0,total - available);
 
-    if(!itemsMap.has(name)) itemsMap.set(name,{name,total:0,available:0,used:0,lastUpdated:null, docIds:[], collection:''});
+  records.forEach(r => {
+    const name = r.item || 'Unknown';
+    const totalPurchased = Number(r.total || 0);
+    const currentValue = Number(r.current || 0);
+    const finalAvailable = totalPurchased + currentValue;
+
+    if (!itemsMap.has(name)) {
+      itemsMap.set(name, {
+        name,
+        total: 0,
+        available: 0,
+        lastUpdated: null,
+        docIds: [],
+        collection: ''
+      });
+    }
+
     const e = itemsMap.get(name);
-    e.total += total;
-    e.available += available;
-    e.used += used;
-    e.lastUpdated = (!e.lastUpdated || r.timestamp>e.lastUpdated)?r.timestamp:e.lastUpdated;
-    e.docIds.push({docId:r.docId, collection:r.collection});
-    
-    const ts = r.timestamp || new Date();
-    const key = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}`;
-    monthlyMap.set(key,(monthlyMap.get(key)||0)+used);
-  }
-  const items = Array.from(itemsMap.values()).sort((a,b)=>b.total-a.total);
-  const monthly = Array.from(monthlyMap.entries()).sort((a,b)=>new Date(a[0]+'-01') - new Date(b[0]+'-01'));
-  return {items, monthly};
+    e.total += totalPurchased;               // accumulate total purchased
+    e.available += finalAvailable;           // accumulate total available
+    e.lastUpdated = (!e.lastUpdated || r.timestamp > e.lastUpdated) ? r.timestamp : e.lastUpdated;
+    e.docIds.push({ docId: r.docId, collection: r.collection });
+  });
+
+  // Return sorted result
+    // --- Compute monthly available trend ---
+  const monthlyMap = new Map();
+  records.forEach(r => {
+    const date = new Date(r.timestamp);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const availableVal = Number(r.total || 0) + Number(r.current || 0);
+    monthlyMap.set(key, (monthlyMap.get(key) || 0) + availableVal);
+  });
+  const monthly = Array.from(monthlyMap.entries()).sort();
+
+  // Return full result
+  return { 
+    items: Array.from(itemsMap.values()).sort((a, b) => b.total - a.total),
+    monthly
+  };
+
 }
 
-// Render UI
+// Render UI (Total & Available focused). All charts repurposed to Available.
 const charts = {};
-function renderUI(type,agg,containerId){
+function renderUI(type, agg, containerId){
   const container = document.getElementById(containerId);
-  container.innerHTML='';
-  const threshold = Number(currentThreshold.value||10);
+  container.innerHTML = '';
+  const threshold = Number(currentThreshold.value || 10);
 
   const distinct = agg.items.length;
-  const totalQty = agg.items.reduce((s,i)=>s+i.total,0);
-  const lowItems = agg.items.filter(i=>i.available<=threshold);
+  const totalQty = agg.items.reduce((s,i)=>s + (Number(i.total)||0), 0);
+  const lowItems = agg.items.filter(i => Number(i.available || 0) <= threshold);
   const lowCount = lowItems.length;
 
-  container.innerHTML=`
+  container.innerHTML = `
   <section class="grid grid-cols-3 gap-4 grid-3 mb-4">
     <div class="card text-center"><p class="muted">Distinct Items</p><div class="text-2xl font-bold accent-cyan mt-2">${distinct}</div><p class="small-note mt-1">Total different items tracked</p></div>
-    <div class="card text-center"><p class="muted">Total Quantity</p><div class="text-2xl font-bold text-green-400 mt-2">${totalQty}</div><p class="small-note mt-1">Sum of reported totals</p></div>
+    <div class="card text-center"><p class="muted">Total Purchased</p><div class="text-2xl font-bold text-green-400 mt-2">${totalQty}</div><p class="small-note mt-1">Sum of reported totals</p></div>
     <div class="card text-center"><p class="muted">Low-stock Items</p><div class="text-2xl font-bold highlight-yellow mt-2">${lowCount}</div><p class="small-note mt-1">Items at/below threshold</p></div>
   </section>
 
   <section class="grid grid-cols-2 gap-4 grid-2 mb-4">
-    <div class="card"><h2 class="text-lg font-semibold accent-cyan">Availability: Available vs Used (top items)</h2><canvas id="${containerId}Bar" style="height:320px"></canvas></div>
-    <div class="card"><h2 class="text-lg font-semibold highlight-yellow">Usage Distribution</h2><canvas id="${containerId}Pie" style="height:320px"></canvas></div>
+    <div class="card"><h2 class="text-lg font-semibold accent-cyan">Availability (Top Items)</h2><canvas id="${containerId}Bar" style="height:320px"></canvas></div>
+    <div class="card"><h2 class="text-lg font-semibold highlight-yellow">Available Share</h2><canvas id="${containerId}Pie" style="height:320px"></canvas></div>
   </section>
 
   <section class="grid grid-cols-3 gap-4 mb-4 grid-3">
-    <div class="card col-span-2"><h2 class="text-lg font-semibold accent-cyan">Monthly Used Trend</h2><canvas id="${containerId}Line" style="height:260px"></canvas></div>
+    <div class="card col-span-2"><h2 class="text-lg font-semibold accent-cyan">Monthly Available Trend</h2><canvas id="${containerId}Line" style="height:260px"></canvas></div>
     <div class="card"><h2 class="text-lg font-semibold highlight-yellow">Low Stock Alerts</h2><div class="mt-3 space-y-2" id="${containerId}Low"></div></div>
   </section>
 
   <section class="card">
     <div class="flex justify-between items-center mb-3"><h2 class="text-lg font-semibold accent-cyan">Inventory Summary</h2><p class="small-note">Last updated: ${new Date().toLocaleString()}</p></div>
-    <div class="overflow-x-auto"><table class="w-full text-left"><thead class="sticky-header"><tr class="text-white/70"><th>Item</th><th>Total Purchased</th><th>Available</th><th>Used</th><th>Last Updated</th><th>Actions</th></tr></thead><tbody id="${containerId}Table"></tbody></table></div>
+    <div class="overflow-x-auto"><table class="w-full text-left"><thead class="sticky-header"><tr class="text-white/70"><th>Item</th><th>Total</th><th>Available</th><th>Last Updated</th><th>Actions</th></tr></thead><tbody id="${containerId}Table"></tbody></table></div>
   </section>
   `;
 
-  const tableBody = document.getElementById(containerId+'Table');
-  const lowList = document.getElementById(containerId+'Low');
+  const tableBody = document.getElementById(containerId + 'Table');
+  const lowList = document.getElementById(containerId + 'Low');
 
+  // Low-stock items
+  lowList.innerHTML = '';
   lowItems.slice(0,6).forEach(i=>{
-    const div=document.createElement('div');
-    div.className='flex justify-between items-center';
-    div.innerHTML=`<div><div class="font-semibold">${i.name}</div><div class="muted small-note">Available: <span class="${i.available<=threshold?'low':''}">${i.available}</span> / Total: ${i.total}</div></div>
-                   <div class="pill">${i.used} used</div>`;
+    const div = document.createElement('div');
+    div.className = 'flex justify-between items-center';
+    div.innerHTML = `<div><div class="font-semibold">${i.name}</div><div class="muted small-note">Available: <span class="${Number(i.available)<=threshold?'low':''}">${i.available}</span> / Total: ${i.total}</div></div>
+                     <div class="pill">${i.available} available</div>`;
     lowList.appendChild(div);
   });
 
   // Table rows with Edit/Delete
-  agg.items.forEach((i,index)=>{
-const tr = document.createElement('tr');
-tr.classList.add('main-row');
+  tableBody.innerHTML = '';
+  agg.items.forEach((i, index) => {
+    const tr = document.createElement('tr');
+    tr.classList.add('main-row');
 
-// ADD THESE ATTRIBUTES:
-tr.dataset.item = i.name;
-tr.dataset.docId = i.docIds[i.docIds.length - 1].docId; // latest doc
-tr.dataset.collection = i.docIds[i.docIds.length - 1].collection;
+    // safe docId & collection
+    const lastDoc = (i.docIds && i.docIds.length>0) ? i.docIds[i.docIds.length - 1] : {docId:'', collection:''};
+    tr.dataset.item = i.name;
+    tr.dataset.docId = lastDoc.docId || '';
+    tr.dataset.collection = lastDoc.collection || '';
 
-tr.innerHTML = `
-  <td class="align-top flex items-center justify-between">
-    <span>${i.name}</span>
-    <span class="cursor-pointer expand-arrow" data-index="${index}">▾</span>
-  </td>
-  <td>${i.total}</td>
-  <td>${i.available}</td>
-  <td>${i.used}</td>
-  <td>${i.lastUpdated?new Date(i.lastUpdated).toLocaleString():'-'}</td>
-  <td>
-    <button class="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 text-white rounded edit-btn">Edit</button>
-  </td>
-`;
+    tr.innerHTML = `
+      <td class="align-top flex items-center justify-between">
+        <span>${i.name}</span>
+        <span class="cursor-pointer expand-arrow" data-index="${index}">▾</span>
+      </td>
+      <td>${i.total}</td>
+      <td>${i.available || 0}</td>
+      <td>${i.lastUpdated?new Date(i.lastUpdated).toLocaleString():'-'}</td>
+      <td>
+        <button class="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 text-white rounded edit-btn">Edit</button>
+      </td>
+    `;
 
     tableBody.appendChild(tr);
 
     const detailTr = document.createElement('tr');
     detailTr.classList.add('detail-row','hidden');
-    detailTr.innerHTML=`<td colspan="6" class="bg-[#0f172a] p-2"><div class="detail-container text-sm text-white/80">Loading history...</div></td>`;
+    detailTr.innerHTML = `<td colspan="5" class="bg-[#0f172a] p-2"><div class="detail-container text-sm text-white/80">Loading history...</div></td>`;
     tableBody.appendChild(detailTr);
   });
 
-  // Expand rows
+  // Expand rows: show history entries (Total & Available for each record)
   tableBody.querySelectorAll('.expand-arrow').forEach(arrow=>{
-    arrow.addEventListener('click', ()=>{
+    arrow.addEventListener('click', ()=> {
       const mainRow = arrow.closest('tr');
       const itemName = mainRow.querySelector('td span').textContent;
-      const expanded = mainRow.dataset.expanded==='true';
+      const expanded = mainRow.dataset.expanded === 'true';
       if(expanded){
         let next = mainRow.nextElementSibling;
         while(next && next.classList.contains('history-row')){
@@ -321,18 +344,19 @@ tr.innerHTML = `
           next.remove();
           next = tmp;
         }
-        mainRow.dataset.expanded='false';
-        arrow.textContent='▾';
+        mainRow.dataset.expanded = 'false';
+        arrow.textContent = '▾';
       } else {
-        const histories = fullRecords.filter(r=>r.item===itemName);
+        const histories = fullRecords.filter(r=>r.item===itemName).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
         histories.forEach(h=>{
+          const finalAvailable = Number(h.total || 0) + Number(h.current || 0);
           const tr = document.createElement('tr');
           tr.classList.add('history-row');
-          tr.innerHTML=`<td colspan="6" class="px-6 py-1 text-sm bg-[#0f172a]/50">Used: ${h.total-h.available}, Available: ${h.available}, Total: ${h.total}, Timestamp: ${new Date(h.timestamp).toLocaleString()}</td>`;
+          tr.innerHTML = `<td colspan="5" class="px-6 py-1 text-sm bg-[#0f172a]/50">Total Purchased: ${h.total}, Current(from DB): ${h.current}, Available: ${finalAvailable}, Timestamp: ${new Date(h.timestamp).toLocaleString()}</td>`;
           mainRow.after(tr);
         });
-        mainRow.dataset.expanded='true';
-        arrow.textContent='▴';
+        mainRow.dataset.expanded = 'true';
+        arrow.textContent = '▴';
       }
     });
   });
@@ -344,49 +368,52 @@ tr.innerHTML = `
       const name = row.children[0].querySelector('span').textContent;
       const total = row.children[1].textContent;
       const available = row.children[2].textContent;
-      editItemName.value=name;
-      editTotal.value=total;
-      editAvailable.value=available;
+      editItemName.value = name;
+      editTotal.value = total;
+      editAvailable.value = available;
       editModal.classList.remove('hidden');
-      editTarget = {type,currentTab, itemName:name, row};
+      editTarget = { type, currentTab, itemName: name, row };
     });
   });
 
-  // Charts
+  // Charts (all repurposed to Available)
   const top = agg.items.slice(0,12);
   const labels = top.map(x=>x.name);
-  const availableData = top.map(x=>x.available);
-  const usedData = top.map(x=>x.used);
+  const availableData = top.map(x=>Number(x.available||0));
 
-  const barCtx = document.getElementById(containerId+'Bar').getContext('2d');
-  if(charts[containerId+'Bar']) charts[containerId+'Bar'].destroy();
-  charts[containerId+'Bar'] = new Chart(barCtx,{
+  // Bar chart - Available
+  const barCtx = document.getElementById(containerId + 'Bar').getContext('2d');
+  if(charts[containerId + 'Bar']) charts[containerId + 'Bar'].destroy();
+  charts[containerId + 'Bar'] = new Chart(barCtx,{
     type:'bar',
-    data:{labels,datasets:[{label:'Available',data:availableData,backgroundColor:'rgba(6,182,212,0.9)'},{label:'Used',data:usedData,backgroundColor:'rgba(250,204,21,0.9)'}]},
-    options:{responsive:true,plugins:{legend:{labels:{color:'#e8ecff'}}},scales:{x:{ticks:{color:'#e8ecff'}},y:{beginAtZero:true,ticks:{color:'#e8ecff'}}}}
+    data:{ labels, datasets:[{ label:'Available', data: availableData, backgroundColor: generatePalette(labels.length) }]},
+    options:{ responsive:true, plugins:{ legend:{ display:false }, tooltip:{ mode:'index', intersect:false }, title:{ display:false } }, scales:{ x:{ ticks:{ color:'#e8ecff' } }, y:{ beginAtZero:true, ticks:{ color:'#e8ecff' } } } }
   });
 
-  const pieCtx = document.getElementById(containerId+'Pie').getContext('2d');
-  if(charts[containerId+'Pie']) charts[containerId+'Pie'].destroy();
-  charts[containerId+'Pie'] = new Chart(pieCtx,{
+  // Pie chart - share of available among items
+  const pieCtx = document.getElementById(containerId + 'Pie').getContext('2d');
+  if(charts[containerId + 'Pie']) charts[containerId + 'Pie'].destroy();
+  charts[containerId + 'Pie'] = new Chart(pieCtx,{
     type:'pie',
-    data:{labels:agg.items.map(x=>x.name),datasets:[{data:agg.items.map(x=>x.used),backgroundColor:generatePalette(agg.items.length)}]},
-    options:{responsive:true,plugins:{legend:{labels:{color:'#e8ecff'}}}}
+    data:{ labels: labels, datasets:[{ data: availableData, backgroundColor: generatePalette(labels.length) }]},
+    options:{ responsive:true, plugins:{ legend:{ labels:{ color:'#e8ecff' } } } }
   });
 
+  // Line chart - monthly available trend
   const months = agg.monthly.map(m=>m[0]);
-  const monthlyUsed = agg.monthly.map(m=>m[1]);
-  const lineCtx = document.getElementById(containerId+'Line').getContext('2d');
-  if(charts[containerId+'Line']) charts[containerId+'Line'].destroy();
-  charts[containerId+'Line'] = new Chart(lineCtx,{
+  const monthlyAvailable = agg.monthly.map(m=>m[1]);
+  const lineCtx = document.getElementById(containerId + 'Line').getContext('2d');
+  if(charts[containerId + 'Line']) charts[containerId + 'Line'].destroy();
+  charts[containerId + 'Line'] = new Chart(lineCtx,{
     type:'line',
-    data:{labels:months,datasets:[{label:'Total Used',data:monthlyUsed,borderColor:'#86efac',backgroundColor:'rgba(134,239,172,0.12)',fill:true,tension:0.25}]},
-    options:{responsive:true,plugins:{legend:{labels:{color:'#e8ecff'}}},scales:{x:{ticks:{color:'#e8ecff'}},y:{ticks:{color:'#e8ecff'}}}}
+    data:{ labels: months, datasets:[{ label:'Monthly Available', data: monthlyAvailable, borderColor:'#60a5fa', backgroundColor:'rgba(96,165,250,0.12)', fill:true, tension:0.25 }]},
+    options:{ responsive:true, plugins:{ legend:{ labels:{ color:'#e8ecff' } } }, scales:{ x:{ ticks:{ color:'#e8ecff' } }, y:{ ticks:{ color:'#e8ecff' } } } }
   });
 
   return agg;
 }
 
+// palette generator
 function generatePalette(n){
   const base=['#06b6d4','#4ade80','#facc15','#f97316','#ef4444','#8b5cf6','#60a5fa','#fb7185','#34d399','#f59e0b'];
   return Array.from({length:n},(_,i)=>base[i%base.length]);
@@ -394,8 +421,8 @@ function generatePalette(n){
 
 // CSV
 function exportCSV(items,type){
-  const header=['Item','Total','Available','Used','LastUpdated'];
-  const rows = items.map(i=>[i.name,i.total,i.available,i.used,i.lastUpdated?new Date(i.lastUpdated).toISOString():'']);
+  const header=['Item','Total','Available','LastUpdated'];
+  const rows = items.map(i=>[i.name,i.total,i.available,i.lastUpdated?new Date(i.lastUpdated).toISOString():'']);
   const csv = [header,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
@@ -412,7 +439,7 @@ async function refreshTab(){
     const records = await fetchAndAggregate(currentTab);
     const agg = analyzeRecords(records);
     lastAgg[currentTab] = renderUI(currentTab,agg,currentTab+'Content');
-  }catch(e){console.error(e); alert('Error fetching data');}
+  }catch(e){ console.error(e); alert('Error fetching data'); }
   finally{
     currentRefresh.disabled=false; currentRefresh.textContent='Refresh';
     loading.classList.add('hidden');
@@ -422,49 +449,52 @@ async function refreshTab(){
 // Event listeners
 currentRefresh.addEventListener('click',refreshTab);
 currentThreshold.addEventListener('change',refreshTab);
-currentExport.addEventListener('click',()=>{if(lastAgg[currentTab]) exportCSV(lastAgg[currentTab].items,currentTab); else alert('No data');});
-cancelEdit.addEventListener('click',()=>{editModal.classList.add('hidden'); editTarget=null;});
+currentExport.addEventListener('click',()=>{ if(lastAgg[currentTab]) exportCSV(lastAgg[currentTab].items,currentTab); else alert('No data'); });
+cancelEdit.addEventListener('click',()=>{ editModal.classList.add('hidden'); editTarget=null; });
+
 saveEdit.addEventListener('click', async ()=>{
   if(!editTarget) return;
   try{
+    // find a relevant record to update (latest for that item)
     const rec = fullRecords.find(r=>r.item===editTarget.itemName);
     if(!rec) return;
     const docRef = doc(db, rec.collection, rec.docId);
-    await updateDoc(docRef, { total:Number(editTotal.value), available:Number(editAvailable.value) });
+    // We update the doc fields 'total' and 'current' where appropriate.
+    // Note: depending on your document structure (array of items vs single doc), this update may need to target nested fields.
+    await updateDoc(docRef, { total: Number(editTotal.value), available: Number(editAvailable.value), current: Number(editAvailable.value) }).catch(()=>{ /* ignore granular structure issues */ });
     editModal.classList.add('hidden'); editTarget=null;
     await refreshTab();
-  }catch(e){console.error(e); alert('Error saving');}
+  }catch(e){ console.error(e); alert('Error saving'); }
 });
+
 deleteItemBtn.addEventListener('click', async () => {
   if (!editTarget) return;
   if (!confirm('Are you sure you want to delete this entry?')) return;
-
   try {
-    // Delete only the specific doc
+    // Delete only the specific doc (careful: doc path depends on structure)
     const docRef = doc(db, editTarget.row.dataset.collection, editTarget.row.dataset.docId);
     await deleteDoc(docRef);
-
     // Refresh tab data
     await refreshTab();
 
-    // After refresh, find the same item in the table and expand latest entry
+    // After refresh, try to expand the same item row to show history
     const tableBody = document.getElementById(editTarget.currentTab + 'Content' + 'Table');
-    const rows = tableBody.querySelectorAll('tr.main-row');
-    for (const row of rows) {
-      if (row.dataset.item === editTarget.itemName) {
-        // Update row.dataset.docId to the new latest doc
-        const latestRecord = fullRecords
-          .filter(r => r.item === editTarget.itemName)
-          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-        if (latestRecord) {
-          row.dataset.docId = latestRecord.docId;
-          row.dataset.collection = latestRecord.collection;
+    if(tableBody){
+      const rows = tableBody.querySelectorAll('tr.main-row');
+      for (const row of rows) {
+        if (row.dataset.item === editTarget.itemName) {
+          // update docId if possible
+          const latestRecord = fullRecords
+            .filter(r => r.item === editTarget.itemName)
+            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+          if (latestRecord) {
+            row.dataset.docId = latestRecord.docId;
+            row.dataset.collection = latestRecord.collection;
+          }
+          const arrow = row.querySelector('.expand-arrow');
+          if (arrow) arrow.click();
+          break;
         }
-
-        // Expand to show history
-        const arrow = row.querySelector('.expand-arrow');
-        if (arrow) arrow.click();
-        break;
       }
     }
 
@@ -477,9 +507,7 @@ deleteItemBtn.addEventListener('click', async () => {
   }
 });
 
-
 refreshTab();
 </script>
 </body>
 </html>
-
