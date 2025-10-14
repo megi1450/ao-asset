@@ -261,7 +261,7 @@ function renderUI(type,agg,containerId){
 
   <section class="card">
     <div class="flex justify-between items-center mb-3"><h2 class="text-lg font-semibold accent-cyan">Inventory Summary</h2><p class="small-note">Last updated: ${new Date().toLocaleString()}</p></div>
-    <div class="overflow-x-auto"><table class="w-full text-left"><thead class="sticky-header"><tr class="text-white/70"><th>Item</th><th>Total</th><th>Available</th><th>Used</th><th>Last Updated</th><th>Actions</th></tr></thead><tbody id="${containerId}Table"></tbody></table></div>
+    <div class="overflow-x-auto"><table class="w-full text-left"><thead class="sticky-header"><tr class="text-white/70"><th>Item</th><th>Total Purchased</th><th>Available</th><th>Used</th><th>Last Updated</th><th>Actions</th></tr></thead><tbody id="${containerId}Table"></tbody></table></div>
   </section>
   `;
 
@@ -482,3 +482,4 @@ refreshTab();
 </script>
 </body>
 </html>
+
