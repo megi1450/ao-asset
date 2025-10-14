@@ -12,19 +12,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-  body {
-    background: linear-gradient(135deg,#0f172a,#1e293b);
-    color: #e8ecff;
-    font-family: 'Poppins', sans-serif;
-  }
-  .card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 14px;
-    padding: 1rem;
-    backdrop-filter: blur(8px);
-    box-shadow: 0 6px 24px rgba(2,6,23,0.6);
-  }
+  body { background: linear-gradient(135deg,#0f172a,#1e293b); color: #e8ecff; font-family: 'Poppins', sans-serif; }
+  .card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 1rem; backdrop-filter: blur(8px); box-shadow: 0 6px 24px rgba(2,6,23,0.6); }
   .muted { color: rgba(232,236,255,0.6); }
   .accent-cyan { color: #06b6d4; }
   .highlight-yellow { color: #facc15; }
@@ -35,44 +24,27 @@
   .small-note { font-size:0.85rem; color: rgba(232,236,255,0.65); }
   .tab-btn { padding:0.5rem 1rem; border-radius:0.5rem; cursor:pointer; font-weight:600; }
   .tab-active { background:#06b6d4; color:white; }
-  .loading-overlay {
-    position:absolute; top:0; left:0; width:100%; height:100%;
-    background:rgba(0,0,0,0.5); color:white; display:flex; align-items:center; justify-content:center; font-size:1.5rem; z-index:10; border-radius:0.75rem;
-  }
+  .loading-overlay { position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); color:white; display:flex; align-items:center; justify-content:center; font-size:1.5rem; z-index:10; border-radius:0.75rem; }
+  .modal-bg { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); display:flex; justify-content:center; align-items:center; z-index:50; }
+  .modal { background:#1e293b; padding:1.5rem; border-radius:12px; max-width:400px; width:90%; color:#e8ecff; }
+  .modal input { width:100%; margin-bottom:0.75rem; padding:0.5rem; border-radius:0.5rem; border:1px solid #ccc; background:#07122a; color:#e8ecff; }
+  .modal button { margin-right:0.5rem; }
 
-  /* Mobile responsive improvements */
+  /* Mobile responsive */
   @media (max-width:768px) {
-    .grid-3 { grid-template-columns: 1fr !important; } /* Cards stack vertically */
-    .grid-2 { grid-template-columns: 1fr !important; }
-    .card { margin-bottom: 1.25rem; }
-    .flex-col-mobile { flex-direction: column !important; gap: 0.75rem !important; }
-    input, button { width: 100% !important; font-size: 1rem; }
-    .overflow-x-auto { overflow-x: auto; }
-    .mt-mobile { margin-top: 1rem !important; }
-  }
-  /* Mobile adjustments only */
-  @media (max-width:768px) {
-    /* Stack grid cards vertically */
     .grid-3 { grid-template-columns: 1fr !important; }
     .grid-2 { grid-template-columns: 1fr !important; }
-    /* Add spacing below each card */
     .card { margin-bottom: 1rem; }
-
-    /* Make inputs & buttons full width */
-    input, button { width: 100% !important; }
-
-    /* Adjust flex for mobile */
+    input, button { width: 100% !important; font-size: 1rem; }
     .flex-col-mobile { flex-direction: column !important; gap: 0.5rem !important; }
-
-    /* Allow tables to scroll horizontally if needed */
     .overflow-x-auto { overflow-x: auto; }
-
-    /* Make chart canvas responsive */
     canvas { max-width: 100% !important; height: auto !important; }
-
-    /* Reduce top margins for better fit */
     .mt-mobile { margin-top: 0.5rem !important; }
   }
+  .main-row:hover { background: rgba(255,255,255,0.05); transition:0.2s; }
+  .expand-arrow { transition: transform 0.2s; cursor:pointer; }
+  .detail-row { background: rgba(255,255,255,0.03); }
+  .sticky-header th { position: sticky; top:0; background:#1e293b; z-index:5; }
 </style>
 </head>
 <body class="min-h-screen p-4 relative">
@@ -87,7 +59,7 @@
 <div class="max-w-7xl mx-auto space-y-6 relative">
 
   <!-- Tabs -->
-  <div class="flex gap-4 mb-4 mt-12">
+  <div class="flex gap-4 mb-4 mt-12 flex-col-mobile">
     <div id="housekeepingTab" class="tab-btn tab-active">Housekeeping</div>
     <div id="electricalTab" class="tab-btn">Electrical</div>
   </div>
@@ -111,11 +83,25 @@
 
 </div>
 
+<!-- Edit Modal -->
+<div id="editModal" class="modal-bg hidden">
+  <div class="modal">
+    <h2 class="text-lg font-semibold accent-cyan mb-2">Edit Item</h2>
+    <input type="text" id="editItemName" placeholder="Item Name" disabled />
+    <input type="number" id="editTotal" placeholder="Total Quantity" />
+    <input type="number" id="editAvailable" placeholder="Available Quantity" />
+    <div class="flex justify-end">
+      <button id="cancelEdit" class="bg-gray-600 hover:bg-gray-700 px-3 py-1 rounded">Cancel</button>
+      <button id="saveEdit" class="bg-cyan-500 hover:bg-cyan-600 px-3 py-1 rounded text-white">Save</button>
+      <button id="deleteItem" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-white">Delete</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
   authDomain: "ao-asset.firebaseapp.com",
@@ -125,7 +111,6 @@ const firebaseConfig = {
   appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
   measurementId: "G-4H7RF76176"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -143,25 +128,30 @@ const currentThreshold = document.getElementById('currentThreshold');
 const currentRefresh = document.getElementById('currentRefresh');
 const currentExport = document.getElementById('currentExport');
 const loading = document.getElementById('loadingOverlay');
+const editModal = document.getElementById('editModal');
+const editItemName = document.getElementById('editItemName');
+const editTotal = document.getElementById('editTotal');
+const editAvailable = document.getElementById('editAvailable');
+const cancelEdit = document.getElementById('cancelEdit');
+const saveEdit = document.getElementById('saveEdit');
+const deleteItemBtn = document.getElementById('deleteItem');
+
+let lastAgg = {housekeeping:null, electrical:null};
+let fullRecords = [];
+
+let editTarget = null; // {type, docId, itemName}
 
 // Tab switching
-housekeepingTabBtn.addEventListener('click', async () => {
-  currentTab='housekeeping';
-  housekeepingTabBtn.classList.add('tab-active');
-  electricalTabBtn.classList.remove('tab-active');
-  housekeepingContent.classList.remove('hidden');
-  electricalContent.classList.add('hidden');
-  await refreshTab();
-});
+housekeepingTabBtn.addEventListener('click', async () => { currentTab='housekeeping'; switchTabs(); });
+electricalTabBtn.addEventListener('click', async () => { currentTab='electrical'; switchTabs(); });
 
-electricalTabBtn.addEventListener('click', async () => {
-  currentTab='electrical';
-  electricalTabBtn.classList.add('tab-active');
-  housekeepingTabBtn.classList.remove('tab-active');
-  electricalContent.classList.remove('hidden');
-  housekeepingContent.classList.add('hidden');
+async function switchTabs(){
+  housekeepingTabBtn.classList.toggle('tab-active', currentTab==='housekeeping');
+  electricalTabBtn.classList.toggle('tab-active', currentTab==='electrical');
+  housekeepingContent.classList.toggle('hidden', currentTab!=='housekeeping');
+  electricalContent.classList.toggle('hidden', currentTab!=='electrical');
   await refreshTab();
-});
+}
 
 // Fetch collection
 async function fetchCollection(name){
@@ -171,7 +161,6 @@ async function fetchCollection(name){
   }catch(e){return [];}
 }
 
-// Parse timestamp
 function parseTimestamp(val){
   if(!val) return null;
   if(typeof val?.toDate==='function') return val.toDate();
@@ -180,7 +169,6 @@ function parseTimestamp(val){
   return isNaN(d)?null:d;
 }
 
-// Fetch & aggregate
 async function fetchAndAggregate(type){
   const records=[];
   for(const col of COLLECTIONS[type]){
@@ -194,7 +182,9 @@ async function fetchAndAggregate(type){
             item: it.item || it.name || it.itemName || it,
             total: Number(it.total || it.totalQty || it.quantity || 0),
             available: Number(it.current ?? it.available ?? it.currentQty ?? 0),
-            timestamp: parseTimestamp(it.timestamp) || parseTimestamp(d.timestamp) || new Date()
+            timestamp: parseTimestamp(it.timestamp) || ts,
+            docId: doc.id,
+            collection: col
           });
         }
       } else if(d.item || d.name){
@@ -202,11 +192,14 @@ async function fetchAndAggregate(type){
           item: d.item||d.name,
           total: Number(d.total||d.quantity||0),
           available: Number(d.available||d.current||0),
-          timestamp: ts
+          timestamp: ts,
+          docId: doc.id,
+          collection: col
         });
       }
     }
   }
+  fullRecords = records;
   return records;
 }
 
@@ -217,29 +210,27 @@ function analyzeRecords(records){
   for(const r of records){
     const name = (r.item||'Unknown').toString();
     const total = Number(r.total||0);
-    const available = Number(r.available||0);
-    const used = Math.max(0,total-available);
+    const available = Math.min(Number(r.available||0), total);
+    const used = Math.max(0,total - available);
 
-    if(!itemsMap.has(name)) itemsMap.set(name,{name,total:0,available:0,used:0,lastUpdated:null});
+    if(!itemsMap.has(name)) itemsMap.set(name,{name,total:0,available:0,used:0,lastUpdated:null, docIds:[], collection:''});
     const e = itemsMap.get(name);
     e.total += total;
     e.available += available;
     e.used += used;
-    if(!e.lastUpdated || r.timestamp>e.lastUpdated) e.lastUpdated = r.timestamp;
-
+    e.lastUpdated = (!e.lastUpdated || r.timestamp>e.lastUpdated)?r.timestamp:e.lastUpdated;
+    e.docIds.push({docId:r.docId, collection:r.collection});
+    
     const ts = r.timestamp || new Date();
     const key = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}`;
     monthlyMap.set(key,(monthlyMap.get(key)||0)+used);
   }
-
   const items = Array.from(itemsMap.values()).sort((a,b)=>b.total-a.total);
-  const monthly = Array.from(monthlyMap.entries())
-    .sort((a,b) => new Date(a[0]+'-01') - new Date(b[0]+'-01'));
-
+  const monthly = Array.from(monthlyMap.entries()).sort((a,b)=>new Date(a[0]+'-01') - new Date(b[0]+'-01'));
   return {items, monthly};
 }
 
-// Render UI & charts
+// Render UI
 const charts = {};
 function renderUI(type,agg,containerId){
   const container = document.getElementById(containerId);
@@ -257,17 +248,20 @@ function renderUI(type,agg,containerId){
     <div class="card text-center"><p class="muted">Total Quantity</p><div class="text-2xl font-bold text-green-400 mt-2">${totalQty}</div><p class="small-note mt-1">Sum of reported totals</p></div>
     <div class="card text-center"><p class="muted">Low-stock Items</p><div class="text-2xl font-bold highlight-yellow mt-2">${lowCount}</div><p class="small-note mt-1">Items at/below threshold</p></div>
   </section>
+
   <section class="grid grid-cols-2 gap-4 grid-2 mb-4">
     <div class="card"><h2 class="text-lg font-semibold accent-cyan">Availability: Available vs Used (top items)</h2><canvas id="${containerId}Bar" style="height:320px"></canvas></div>
     <div class="card"><h2 class="text-lg font-semibold highlight-yellow">Usage Distribution</h2><canvas id="${containerId}Pie" style="height:320px"></canvas></div>
   </section>
+
   <section class="grid grid-cols-3 gap-4 mb-4 grid-3">
     <div class="card col-span-2"><h2 class="text-lg font-semibold accent-cyan">Monthly Used Trend</h2><canvas id="${containerId}Line" style="height:260px"></canvas></div>
     <div class="card"><h2 class="text-lg font-semibold highlight-yellow">Low Stock Alerts</h2><div class="mt-3 space-y-2" id="${containerId}Low"></div></div>
   </section>
+
   <section class="card">
     <div class="flex justify-between items-center mb-3"><h2 class="text-lg font-semibold accent-cyan">Inventory Summary</h2><p class="small-note">Last updated: ${new Date().toLocaleString()}</p></div>
-    <div class="overflow-x-auto"><table class="w-full text-left"><thead><tr class="text-white/70"><th>Item</th><th>Total</th><th>Available</th><th>Used</th><th>Last Updated</th></tr></thead><tbody id="${containerId}Table"></tbody></table></div>
+    <div class="overflow-x-auto"><table class="w-full text-left"><thead class="sticky-header"><tr class="text-white/70"><th>Item</th><th>Total</th><th>Available</th><th>Used</th><th>Last Updated</th><th>Actions</th></tr></thead><tbody id="${containerId}Table"></tbody></table></div>
   </section>
   `;
 
@@ -282,10 +276,80 @@ function renderUI(type,agg,containerId){
     lowList.appendChild(div);
   });
 
-  agg.items.forEach(i=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td class="align-top">${i.name}</td><td>${i.total}</td><td>${i.available}</td><td>${i.used}</td><td>${i.lastUpdated?new Date(i.lastUpdated).toLocaleString():'-'}</td>`;
+  // Table rows with Edit/Delete
+  agg.items.forEach((i,index)=>{
+const tr = document.createElement('tr');
+tr.classList.add('main-row');
+
+// ADD THESE ATTRIBUTES:
+tr.dataset.item = i.name;
+tr.dataset.docId = i.docIds[i.docIds.length - 1].docId; // latest doc
+tr.dataset.collection = i.docIds[i.docIds.length - 1].collection;
+
+tr.innerHTML = `
+  <td class="align-top flex items-center justify-between">
+    <span>${i.name}</span>
+    <span class="cursor-pointer expand-arrow" data-index="${index}">▾</span>
+  </td>
+  <td>${i.total}</td>
+  <td>${i.available}</td>
+  <td>${i.used}</td>
+  <td>${i.lastUpdated?new Date(i.lastUpdated).toLocaleString():'-'}</td>
+  <td>
+    <button class="bg-cyan-500 hover:bg-cyan-600 px-2 py-1 text-white rounded edit-btn">Edit</button>
+  </td>
+`;
+
     tableBody.appendChild(tr);
+
+    const detailTr = document.createElement('tr');
+    detailTr.classList.add('detail-row','hidden');
+    detailTr.innerHTML=`<td colspan="6" class="bg-[#0f172a] p-2"><div class="detail-container text-sm text-white/80">Loading history...</div></td>`;
+    tableBody.appendChild(detailTr);
+  });
+
+  // Expand rows
+  tableBody.querySelectorAll('.expand-arrow').forEach(arrow=>{
+    arrow.addEventListener('click', ()=>{
+      const mainRow = arrow.closest('tr');
+      const itemName = mainRow.querySelector('td span').textContent;
+      const expanded = mainRow.dataset.expanded==='true';
+      if(expanded){
+        let next = mainRow.nextElementSibling;
+        while(next && next.classList.contains('history-row')){
+          const tmp = next.nextElementSibling;
+          next.remove();
+          next = tmp;
+        }
+        mainRow.dataset.expanded='false';
+        arrow.textContent='▾';
+      } else {
+        const histories = fullRecords.filter(r=>r.item===itemName);
+        histories.forEach(h=>{
+          const tr = document.createElement('tr');
+          tr.classList.add('history-row');
+          tr.innerHTML=`<td colspan="6" class="px-6 py-1 text-sm bg-[#0f172a]/50">Used: ${h.total-h.available}, Available: ${h.available}, Total: ${h.total}, Timestamp: ${new Date(h.timestamp).toLocaleString()}</td>`;
+          mainRow.after(tr);
+        });
+        mainRow.dataset.expanded='true';
+        arrow.textContent='▴';
+      }
+    });
+  });
+
+  // Edit buttons
+  tableBody.querySelectorAll('.edit-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const row = btn.closest('tr');
+      const name = row.children[0].querySelector('span').textContent;
+      const total = row.children[1].textContent;
+      const available = row.children[2].textContent;
+      editItemName.value=name;
+      editTotal.value=total;
+      editAvailable.value=available;
+      editModal.classList.remove('hidden');
+      editTarget = {type,currentTab, itemName:name, row};
+    });
   });
 
   // Charts
@@ -323,13 +387,12 @@ function renderUI(type,agg,containerId){
   return agg;
 }
 
-// Palette
 function generatePalette(n){
   const base=['#06b6d4','#4ade80','#facc15','#f97316','#ef4444','#8b5cf6','#60a5fa','#fb7185','#34d399','#f59e0b'];
   return Array.from({length:n},(_,i)=>base[i%base.length]);
 }
 
-// Export CSV
+// CSV
 function exportCSV(items,type){
   const header=['Item','Total','Available','Used','LastUpdated'];
   const rows = items.map(i=>[i.name,i.total,i.available,i.used,i.lastUpdated?new Date(i.lastUpdated).toISOString():'']);
@@ -342,7 +405,6 @@ function exportCSV(items,type){
 }
 
 // Refresh tab
-let lastAgg={housekeeping:null,electrical:null};
 async function refreshTab(){
   loading.classList.remove('hidden');
   currentRefresh.disabled=true; currentRefresh.textContent='Loading...';
@@ -357,11 +419,65 @@ async function refreshTab(){
   }
 }
 
+// Event listeners
 currentRefresh.addEventListener('click',refreshTab);
 currentThreshold.addEventListener('change',refreshTab);
 currentExport.addEventListener('click',()=>{if(lastAgg[currentTab]) exportCSV(lastAgg[currentTab].items,currentTab); else alert('No data');});
+cancelEdit.addEventListener('click',()=>{editModal.classList.add('hidden'); editTarget=null;});
+saveEdit.addEventListener('click', async ()=>{
+  if(!editTarget) return;
+  try{
+    const rec = fullRecords.find(r=>r.item===editTarget.itemName);
+    if(!rec) return;
+    const docRef = doc(db, rec.collection, rec.docId);
+    await updateDoc(docRef, { total:Number(editTotal.value), available:Number(editAvailable.value) });
+    editModal.classList.add('hidden'); editTarget=null;
+    await refreshTab();
+  }catch(e){console.error(e); alert('Error saving');}
+});
+deleteItemBtn.addEventListener('click', async () => {
+  if (!editTarget) return;
+  if (!confirm('Are you sure you want to delete this entry?')) return;
 
-// Initial load
+  try {
+    // Delete only the specific doc
+    const docRef = doc(db, editTarget.row.dataset.collection, editTarget.row.dataset.docId);
+    await deleteDoc(docRef);
+
+    // Refresh tab data
+    await refreshTab();
+
+    // After refresh, find the same item in the table and expand latest entry
+    const tableBody = document.getElementById(editTarget.currentTab + 'Content' + 'Table');
+    const rows = tableBody.querySelectorAll('tr.main-row');
+    for (const row of rows) {
+      if (row.dataset.item === editTarget.itemName) {
+        // Update row.dataset.docId to the new latest doc
+        const latestRecord = fullRecords
+          .filter(r => r.item === editTarget.itemName)
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+        if (latestRecord) {
+          row.dataset.docId = latestRecord.docId;
+          row.dataset.collection = latestRecord.collection;
+        }
+
+        // Expand to show history
+        const arrow = row.querySelector('.expand-arrow');
+        if (arrow) arrow.click();
+        break;
+      }
+    }
+
+    editModal.classList.add('hidden');
+    editTarget = null;
+
+  } catch (e) {
+    console.error(e);
+    alert('Error deleting');
+  }
+});
+
+
 refreshTab();
 </script>
 </body>
