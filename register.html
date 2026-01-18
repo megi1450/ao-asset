@@ -23,6 +23,19 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 let locations = [];
+let manufacturers = [];
+let assetNames = [];
+let categories = [];
+let models = [];
+let remarksList = [];
+let dataLoaded = {
+  assetNames: false,
+  categories: false,
+  manufacturers: false,
+  models: false,
+  remarks: false,
+  locations: false
+};
 
 // Helper log function
 function log(msg){ 
@@ -42,28 +55,144 @@ async function fetchOptions(subcollection) {
 async function populateDropdown(id, subcollection) {
   let options = await fetchOptions(subcollection);
 
-  if(subcollection === 'locations'){
-    options.sort((a,b)=>{
-      const [blockA,floorA] = a.name.match(/[A-Za-z]+|[0-9]+/g);
-      const [blockB,floorB] = b.name.match(/[A-Za-z]+|[0-9]+/g);
-      if(blockA !== blockB) return blockA.localeCompare(blockB);
-      return parseInt(floorA)-parseInt(floorB);
-    });
-    locations = options; 
-    log(`Locations sorted & stored globally`);
+  switch (subcollection) {
+    case 'locations':
+      locations = options;
+        dataLoaded.locations = true;
+      return;
+    case 'manufacturers':
+      manufacturers = options;
+        dataLoaded.manufacturers = true;
+      return;
+    case 'assetNames':
+      assetNames = options;
+        dataLoaded.assetNames = true;
+      return;
+    case 'categories':
+      categories = options;
+      dataLoaded.categories = true;
+      return;
+    case 'models':
+      models = options;
+      dataLoaded.models = true;
+      return;
+    case 'remarks':
+      remarksList = options;
+      dataLoaded.remarks = true;
+      return;
+  }
+}
+function setupSearchableDropdown(inputId, dropdownId, dataList, onSelect) {
+  const input = document.getElementById(inputId);
+  const dropdown = document.getElementById(dropdownId);
+
+function filterList() {
+
+  // DATA NOT READY YET
+  if (!dataList || dataList.length === 0) {
+    dropdown.innerHTML = `
+      <li class="px-2 py-1 text-gray-400 italic">
+        Loading data…
+      </li>
+    `;
+    dropdown.classList.remove('hidden');
     return;
   }
 
-  const select = document.getElementById(id);
-  select.innerHTML = "";
-  options.forEach(opt => {
-    const optionEl = document.createElement('option');
-    optionEl.value = JSON.stringify(opt);
-    optionEl.textContent = opt.name;
-    select.appendChild(optionEl);
-  });
-  log(`Dropdown ${id} populated`);
+  const value = input.value.toLowerCase().trim();
+
+  const filtered = dataList.filter(item =>
+    item.name.toLowerCase().includes(value)
+  );
+
+  dropdown.innerHTML = "";
+
+  if (filtered.length === 0) {
+    dropdown.innerHTML = `
+      <li class="px-2 py-1 text-gray-400 italic">
+        No matches found
+      </li>
+    `;
+  } else {
+    filtered.forEach(item => {
+      const li = document.createElement('li');
+      li.className = "px-2 py-1 hover:bg-blue-600 cursor-pointer";
+      li.textContent = item.name;
+
+      li.onclick = () => {
+        input.value = item.name;
+        input.dataset.selectedValue = JSON.stringify(item);
+        dropdown.classList.add('hidden');
+        onSelect?.(item);
+      };
+
+      dropdown.appendChild(li);
+    });
+  }
+
+  dropdown.classList.remove('hidden');
 }
+
+
+  input.addEventListener('input', filterList);
+  input.addEventListener('focus', filterList);
+
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+      if (!dataList.find(d => d.name === input.value)) {
+        input.value = "";
+        input.dataset.selectedValue = "";
+        onSelect?.(null);
+      }
+    }
+  });
+}
+
+
+function setupManufacturerDropdown() {
+  const input = document.getElementById('manufacturerInput');
+  const dropdown = document.getElementById('manufacturerDropdown');
+
+  function filterManufacturers() {
+    const value = input.value.toLowerCase().trim();
+
+    const filtered = manufacturers.filter(m =>
+      m.name.toLowerCase().includes(value)
+    );
+
+    dropdown.innerHTML = "";
+    filtered.forEach(m => {
+      const li = document.createElement('li');
+      li.className = "px-2 py-1 hover:bg-blue-600 cursor-pointer";
+      li.textContent = m.name;
+
+      li.onclick = () => {
+        input.value = m.name;
+        input.dataset.selectedValue = JSON.stringify(m);
+        dropdown.classList.add('hidden');
+      };
+
+      dropdown.appendChild(li);
+    });
+
+    dropdown.classList.remove('hidden');
+  }
+
+  input.addEventListener('input', filterManufacturers);
+  input.addEventListener('focus', filterManufacturers);
+
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+      dropdown.classList.add('hidden');
+      if (!manufacturers.find(m => m.name === input.value)) {
+        input.value = "";
+        input.dataset.selectedValue = "";
+      }
+    }
+  });
+}
+
 
 // Add new dropdown item
 async function addNewItem(subcollection, dropdownId) {
@@ -116,31 +245,62 @@ async function generateAssetCode(assetShort, locationShort){
   return code;
 }
 
-// Update generated asset code
 async function updateGeneratedCode() {
-  const assetSel = document.getElementById('assetName').value ? JSON.parse(document.getElementById('assetName').value) : null;
-  const locationSel = document.getElementById('locationInput').dataset.selectedValue ? JSON.parse(document.getElementById('locationInput').dataset.selectedValue) : null;
-  if(!assetSel || !locationSel) {
+  const assetSel =
+    document.getElementById('assetNameInput').dataset.selectedValue
+      ? JSON.parse(document.getElementById('assetNameInput').dataset.selectedValue)
+      : null;
+
+  const locationSel =
+    document.getElementById('locationInput').dataset.selectedValue
+      ? JSON.parse(document.getElementById('locationInput').dataset.selectedValue)
+      : null;
+
+  if (!assetSel || !locationSel) {
     document.getElementById('generatedCode').textContent = "";
     return;
   }
+
   const code = await generateAssetCode(assetSel.short, locationSel.short);
   document.getElementById('generatedCode').textContent = `Generated Asset Code: ${code}`;
 }
+
 
 // Submit asset
 async function submitAsset(){
   log("Submitting asset...");
   document.getElementById('loadingOverlay').style.display = 'flex';
 
-  const assetSel = document.getElementById('assetName').value ? JSON.parse(document.getElementById('assetName').value) : null;
-  const categorySel = document.getElementById('category').value ? JSON.parse(document.getElementById('category').value) : null;
-  const manufacturerSel = document.getElementById('manufacturer').value ? JSON.parse(document.getElementById('manufacturer').value) : null;
-  const modelSel = document.getElementById('model').value ? JSON.parse(document.getElementById('model').value) : null;
+  const assetSel =
+  document.getElementById('assetNameInput').dataset.selectedValue
+    ? JSON.parse(document.getElementById('assetNameInput').dataset.selectedValue)
+    : null;
+
+const categorySel =
+  document.getElementById('categoryInput').dataset.selectedValue
+    ? JSON.parse(document.getElementById('categoryInput').dataset.selectedValue)
+    : null;
+
+const modelSel =
+  document.getElementById('modelInput').dataset.selectedValue
+    ? JSON.parse(document.getElementById('modelInput').dataset.selectedValue)
+    : null;
+
+const remarkSel =
+  document.getElementById('remarksInput').dataset.selectedValue
+    ? JSON.parse(document.getElementById('remarksInput').dataset.selectedValue)
+    : null;
+
+  const manufacturerSel =
+  document.getElementById('manufacturerInput').dataset.selectedValue
+    ? JSON.parse(document.getElementById('manufacturerInput').dataset.selectedValue)
+    : null;
+
+  
   const installationDate = document.getElementById('installationDate').value;
   const locationSel = document.getElementById('locationInput').dataset.selectedValue ? JSON.parse(document.getElementById('locationInput').dataset.selectedValue) : null;
   const amcVendor = document.getElementById('amcVendor').value;
-  const remarkSel = document.getElementById('remarks').value ? JSON.parse(document.getElementById('remarks').value) : null;
+  
   const amcStart = document.getElementById('amcStart').value;
   const amcEnd = document.getElementById('amcEnd').value;
 
@@ -237,16 +397,66 @@ function setupLocationDropdown(){
 
 // On page load
 window.addEventListener('DOMContentLoaded', async () => {
-  await populateDropdown('assetName','assetNames');
-  await populateDropdown('category','categories');
-  await populateDropdown('manufacturer','manufacturers');
-  await populateDropdown('model','models');
-  await populateDropdown('location','locations');
-  await populateDropdown('remarks','remarks');
 
-  document.getElementById('assetName').addEventListener('change', updateGeneratedCode);
-  setupLocationDropdown();
+  document.querySelectorAll(
+  '#assetNameInput, #categoryInput, #manufacturerInput, #modelInput, #remarksInput'
+).forEach(input => {
+  input.disabled = true;
+  input.placeholder = "Loading…";
 });
+
+  // LOAD DATA (ONCE)
+  await populateDropdown(null,'assetNames');
+  await populateDropdown(null,'categories');
+  await populateDropdown(null,'manufacturers');
+  await populateDropdown(null,'models');
+  await populateDropdown(null,'remarks');
+  await populateDropdown(null,'locations');
+
+  // SEARCH DROPDOWNS (ALL SAME SYSTEM)
+  setupSearchableDropdown(
+    'assetNameInput',
+    'assetNameDropdown',
+    assetNames,
+    updateGeneratedCode
+  );
+
+  setupSearchableDropdown(
+    'categoryInput',
+    'categoryDropdown',
+    categories
+  );
+
+  setupSearchableDropdown(
+    'manufacturerInput',
+    'manufacturerDropdown',
+    manufacturers
+  );
+
+  setupSearchableDropdown(
+    'modelInput',
+    'modelDropdown',
+    models
+  );
+
+  setupSearchableDropdown(
+    'remarksInput',
+    'remarksDropdown',
+    remarksList
+  );
+
+  // LOCATION (SEPARATE LOGIC)
+  setupLocationDropdown();
+
+  document.querySelectorAll(
+  '#assetNameInput, #categoryInput, #manufacturerInput, #modelInput, #remarksInput'
+).forEach(input => {
+  input.disabled = false;
+  input.placeholder = "Type to search";
+});
+
+});
+
 
 // Attach functions to window for inline buttons
 window.addNewItem = addNewItem;
@@ -278,40 +488,74 @@ body {
     <form id="assetForm" class="space-y-4" onsubmit="event.preventDefault(); submitAsset();">
 
       <!-- Asset Name -->
-      <div>
-        <label class="block font-medium mb-1">Asset Name</label>
-        <div class="flex space-x-2">
-          <select id="assetName" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
-          <button type="button" onclick="addNewItem('assetNames','assetName')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
-        </div>
-      </div>
+      <div class="relative">
+  <label class="block font-medium mb-1">Asset Name</label>
+  <div class="flex space-x-2">
+    <input type="text" id="assetNameInput"
+      class="border p-2 flex-1 rounded bg-[#011a3b] text-white"
+      placeholder="Search asset name">
+    <button type="button"
+      onclick="addNewItem('assetNames','assetNameInput')"
+      class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
+  </div>
+  <ul id="assetNameDropdown"
+    class="absolute z-50 w-full bg-[#011a3b] text-white border rounded max-h-48 overflow-y-auto hidden">
+  </ul>
+</div>
+
 
       <!-- Category -->
-      <div>
-        <label class="block font-medium mb-1">Category</label>
-        <div class="flex space-x-2">
-          <select id="category" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
-          <button type="button" onclick="addNewItem('categories','category')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
-        </div>
-      </div>
+      <div class="relative">
+  <label class="block font-medium mb-1">Category</label>
+  <div class="flex space-x-2">
+    <input type="text" id="categoryInput"
+      class="border p-2 flex-1 rounded bg-[#011a3b] text-white"
+      placeholder="Search category">
+    <button type="button"
+      onclick="addNewItem('categories','categoryInput')"
+      class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
+  </div>
+  <ul id="categoryDropdown"
+    class="absolute z-50 w-full bg-[#011a3b] text-white border rounded max-h-48 overflow-y-auto hidden">
+  </ul>
+</div>
 
       <!-- Manufacturer -->
-      <div>
-        <label class="block font-medium mb-1">Manufacturer</label>
-        <div class="flex space-x-2">
-          <select id="manufacturer" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
-          <button type="button" onclick="addNewItem('manufacturers','manufacturer')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
-        </div>
-      </div>
+<!-- Manufacturer -->
+<div class="relative">
+  <label class="block font-medium mb-1">Manufacturer</label>
+  <div class="flex space-x-2">
+    <input type="text" id="manufacturerInput"
+      class="border p-2 flex-1 rounded bg-[#011a3b] text-white"
+      placeholder="Search manufacturer">
+
+    <button type="button"
+      onclick="addNewItem('manufacturers','manufacturerInput')"
+      class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
+  </div>
+
+  <ul id="manufacturerDropdown"
+    class="absolute z-50 w-full bg-[#011a3b] text-white border rounded max-h-48 overflow-y-auto hidden">
+  </ul>
+</div>
+
 
       <!-- Model / Serial No -->
-      <div>
-        <label class="block font-medium mb-1">Model / Serial No</label>
-        <div class="flex space-x-2">
-          <select id="model" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
-          <button type="button" onclick="addNewItem('models','model')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
-        </div>
-      </div>
+      <div class="relative">
+  <label class="block font-medium mb-1">Model / Serial No</label>
+  <div class="flex space-x-2">
+    <input type="text" id="modelInput"
+      class="border p-2 flex-1 rounded bg-[#011a3b] text-white"
+      placeholder="Search model">
+    <button type="button"
+      onclick="addNewItem('models','modelInput')"
+      class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
+  </div>
+  <ul id="modelDropdown"
+    class="absolute z-50 w-full bg-[#011a3b] text-white border rounded max-h-48 overflow-y-auto hidden">
+  </ul>
+</div>
+
 
       <!-- Installation Date -->
       <div>
@@ -333,13 +577,22 @@ body {
       </div>
 
       <!-- Remarks -->
-      <div>
-        <label class="block font-medium mb-1">Remarks</label>
-        <div class="flex space-x-2">
-          <select id="remarks" class="border p-2 flex-1 rounded bg-[#011a3b] text-white"></select>
-          <button type="button" onclick="addNewItem('remarks','remarks')" class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
-        </div>
-      </div>
+<div class="relative">
+  <label class="block font-medium mb-1">Remarks</label>
+  <div class="flex space-x-2">
+    <input type="text" id="remarksInput"
+      class="border p-2 flex-1 rounded bg-[#011a3b] text-white"
+      placeholder="Search remarks">
+    <button type="button"
+      onclick="addNewItem('remarks','remarksInput')"
+      class="bg-green-600 text-white px-3 rounded font-bold text-lg">+</button>
+  </div>
+  <ul id="remarksDropdown"
+    class="absolute z-50 w-full bg-[#011a3b] text-white border rounded max-h-48 overflow-y-auto hidden">
+  </ul>
+</div>
+
+
 
       <!-- AMC Dates -->
       <div class="flex flex-col md:flex-row md:space-x-2">
