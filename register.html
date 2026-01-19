@@ -196,6 +196,77 @@ function setupManufacturerDropdown() {
   });
 }
 
+async function refreshDropdownData(subcollection) {
+  log(`Refreshing data for ${subcollection}`);
+
+  const options = await fetchOptions(subcollection);
+
+  switch (subcollection) {
+    case 'assetNames':
+      assetNames = options;
+      break;
+    case 'categories':
+      categories = options;
+      break;
+    case 'manufacturers':
+      manufacturers = options;
+      break;
+    case 'models':
+      models = options;
+      break;
+    case 'remarks':
+      remarksList = options;
+      break;
+    case 'locations':
+      locations = options;
+      break;
+  }
+
+  log(`Refresh complete for ${subcollection}`);
+}
+
+function rebindDropdown(subcollection) {
+  if (subcollection === 'assetNames') {
+    setupSearchableDropdown(
+      'assetNameInput',
+      'assetNameDropdown',
+      assetNames,
+      updateGeneratedCode
+    );
+  }
+
+  if (subcollection === 'categories') {
+    setupSearchableDropdown(
+      'categoryInput',
+      'categoryDropdown',
+      categories
+    );
+  }
+
+  if (subcollection === 'manufacturers') {
+    setupSearchableDropdown(
+      'manufacturerInput',
+      'manufacturerDropdown',
+      manufacturers
+    );
+  }
+
+  if (subcollection === 'models') {
+    setupSearchableDropdown(
+      'modelInput',
+      'modelDropdown',
+      models
+    );
+  }
+
+  if (subcollection === 'remarks') {
+    setupSearchableDropdown(
+      'remarksInput',
+      'remarksDropdown',
+      remarksList
+    );
+  }
+}
 
 // Add new dropdown item
 async function addNewItem(subcollection, dropdownId) {
@@ -231,11 +302,40 @@ async function addNewItem(subcollection, dropdownId) {
     }
     newObj.short = short;
   }
+// 1. ADD TO FIRESTORE (ONLY ONCE)
+const docRef = await addDoc(
+  collection(db, 'dropdowns', 'options', subcollection),
+  newObj
+);
 
-  await addDoc(collection(db, 'dropdowns', 'options', subcollection), newObj);
-  alert(`${newName} added${newObj.short ? ` with short code ${newObj.short}` : ''}`);
-  log(`New item added in ${subcollection}: ${newName}`);
-  await populateDropdown(dropdownId, subcollection);
+// 2. USER FEEDBACK
+alert(`${newName} added${newObj.short ? ` with short code ${newObj.short}` : ''}`);
+log(`New item added in ${subcollection}: ${newName}`);
+
+// 3. REFRESH FROM DATABASE
+await refreshDropdownData(subcollection);
+rebindDropdown(subcollection);
+
+// 4. PICK THE CORRECT REFRESHED LIST
+let list;
+switch (subcollection) {
+  case 'assetNames': list = assetNames; break;
+  case 'categories': list = categories; break;
+  case 'manufacturers': list = manufacturers; break;
+  case 'models': list = models; break;
+  case 'remarks': list = remarksList; break;
+  case 'locations': list = locations; break;
+}
+
+// 5. FIND THE SAVED ITEM (WITH id)
+const savedItem = list.find(item => item.id === docRef.id);
+
+// 6. UPDATE INPUT SAFELY
+const input = document.getElementById(dropdownId);
+input.value = savedItem.name;
+input.dataset.selectedValue = JSON.stringify(savedItem);
+
+
 }
 
 // Generate asset code

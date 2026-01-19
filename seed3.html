@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Location Master – Seeder</title>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      getDocs,
+      query,
+      where,
+      deleteDoc,
+      doc,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
+      authDomain: "ao-asset.firebaseapp.com",
+      projectId: "ao-asset",
+      storageBucket: "ao-asset.firebasestorage.app",
+      messagingSenderId: "406786910363",
+      appId: "1:406786910363:web:1d837738aab6c6b9d73e3e"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const COLLECTION = collection(db, "dropdowns", "options", "locations");
+    const SEED_TAG = "location-master-page";
+
+    function log(msg) {
+      console.log(`[LocationSeeder] ${msg}`);
+    }
+
+    async function addLocation() {
+      const name = document.getElementById("name").value.trim();
+      const short = document.getElementById("short").value.trim();
+
+      if (!name || !short) {
+        alert("Name and Short are required");
+        return;
+      }
+
+      log(`Checking duplicate for "${name}"`);
+
+      const q = query(COLLECTION, where("name", "==", name));
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        log(`Duplicate found. Aborting.`);
+        alert("Location already exists");
+        return;
+      }
+
+      log(`Adding location: ${name} (${short})`);
+
+      await addDoc(COLLECTION, {
+        name,
+        short,
+        _seededBy: SEED_TAG,
+        _seededAt: serverTimestamp()
+      });
+
+      log(`Location added successfully`);
+
+      document.getElementById("name").value = "";
+      document.getElementById("short").value = "";
+    }
+
+    async function revertSeededData() {
+      if (!confirm("This will DELETE all locations added by this page. Continue?")) {
+        return;
+      }
+
+      log("Revert initiated");
+
+      const q = query(COLLECTION, where("_seededBy", "==", SEED_TAG));
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        log("No seeded records found");
+        alert("Nothing to revert");
+        return;
+      }
+
+      let count = 0;
+
+      for (const d of snap.docs) {
+        log(`Deleting: ${d.data().name}`);
+        await deleteDoc(doc(db, "dropdowns", "options", "locations", d.id));
+        count++;
+      }
+
+      log(`Revert completed. Deleted ${count} records`);
+      alert(`Reverted ${count} locations`);
+    }
+
+    window.addLocation = addLocation;
+    window.revertSeededData = revertSeededData;
+  </script>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+  <div class="w-full max-w-md bg-gray-800 p-6 rounded shadow space-y-4">
+    <h1 class="text-xl font-bold text-center text-blue-400">
+      Location Master – Seeder
+    </h1>
+
+    <div>
+      <label class="block mb-1">Location Name</label>
+      <input
+        id="name"
+        type="text"
+        placeholder="Block A, Terrace"
+        class="w-full p-2 rounded bg-gray-700"
+      />
+    </div>
+
+    <div>
+      <label class="block mb-1">Location Short</label>
+      <input
+        id="short"
+        type="text"
+        placeholder="BA-T"
+        class="w-full p-2 rounded bg-gray-700"
+      />
+    </div>
+
+    <button
+      onclick="addLocation()"
+      class="w-full bg-green-600 hover:bg-green-700 p-2 rounded font-bold">
+      Add Location
+    </button>
+
+    <hr class="border-gray-600" />
+
+    <button
+      onclick="revertSeededData()"
+      class="w-full bg-red-600 hover:bg-red-700 p-2 rounded font-bold">
+      Revert Seeded Locations
+    </button>
+
+    <p class="text-xs text-gray-400 text-center">
+      Revert affects only records created by this page
+    </p>
+  </div>
+</body>
+</html>
