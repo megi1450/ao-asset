@@ -1,199 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" href="logo.jpg">
-  <title>AO Asset</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Access Restricted</title>
 
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: '#011f51',
-            dark: '#010e25',
-            accent: '#2e7eff',
-            textmain: '#e8ecff',
-            textsoft: '#a3b5e4',
-          },
-          fontFamily: {
-            poppins: ['Poppins', 'sans-serif'],
-          },
-        },
-      },
-    };
-  </script>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Segoe UI", Arial, sans-serif;
+    }
 
-  <style>
     body {
-      font-family: 'Poppins', sans-serif;
-      background: linear-gradient(135deg, #010e25, #011f51);
-      color: #e8ecff;
-      margin: 0;
+        height: 100vh;
+        background: #0a0a0f;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: #e0e0e0;
+        overflow: hidden;
     }
 
-    .login-card {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 18px;
-      backdrop-filter: blur(14px);
-      box-shadow: 0 6px 25px rgba(0, 0, 0, 0.45);
-      transition: all 0.3s ease;
+    /* subtle animated gradient glow */
+    body::before {
+        content: "";
+        position: absolute;
+        width: 500px;
+        height: 500px;
+        background: radial-gradient(circle, rgba(255, 0, 100, 0.15), transparent 70%);
+        animation: floatGlow 6s ease-in-out infinite alternate;
     }
 
-    .login-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 30px rgba(46, 126, 255, 0.25);
+    @keyframes floatGlow {
+        0% { transform: translate(-120px, -120px); }
+        100% { transform: translate(120px, 120px); }
     }
 
-    input {
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: #e8ecff;
-      outline: none;
-      transition: all 0.3s ease;
+    .message {
+        position: relative;
+        text-align: center;
+        max-width: 600px;
+        padding: 40px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(8px);
+        border-radius: 16px;
+        animation: fadeIn 1.5s ease forwards;
     }
 
-    input::placeholder {
-      color: rgba(255, 255, 255, 0.6);
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
-    input:focus {
-      border-color: #2e7eff;
-      box-shadow: 0 0 8px rgba(46, 126, 255, 0.4);
-      background: rgba(255, 255, 255, 0.12);
+    h1 {
+        font-size: 28px;
+        margin-bottom: 15px;
+        letter-spacing: 1px;
+        color: #ffffff;
     }
 
-    .login-btn {
-      background: linear-gradient(135deg, #2e7eff, #0040b5);
-      border: none;
-      border-radius: 10px;
-      color: #fff;
-      font-weight: 600;
-      font-size: 1rem;
-      letter-spacing: 0.3px;
-      padding: 0.75rem;
-      transition: all 0.3s ease;
-      box-shadow: 0 3px 0 #002b70;
+    p {
+        font-size: 15px;
+        line-height: 1.7;
+        color: #b0b0b0;
     }
 
-    .login-btn:hover {
-      background: linear-gradient(135deg, #4c91ff, #013b9a);
-      box-shadow: 0 0 14px rgba(46, 126, 255, 0.6), 0 4px 0 #002b70;
-      transform: translateY(-2px);
-    }
-
-    .secondary-btn {
-      background: rgba(255, 255, 255, 0.12);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #d6defb;
-      border-radius: 10px;
-      font-weight: 500;
-      padding: 0.7rem;
-      transition: all 0.3s ease;
-    }
-
-    .secondary-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-      color: #ffffff;
-    }
-
-    .title {
-      color: #2e7eff;
-      font-weight: 700;
-      font-size: 1.8rem;
-      text-shadow: 0 0 6px rgba(46, 126, 255, 0.4);
-    }
-
-    .subtitle {
-      color: #a3b5e4;
-      font-size: 0.9rem;
-    }
-
-    /* Hide right image on mobile */
-    @media (max-width: 768px) {
-      .right-image {
-        display: none;
-      }
-    }
-  </style>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyCtdmsd0gWLPqwNpRI2lpiif_FuG-PTHjQ",
-    authDomain: "ao-asset.firebaseapp.com",
-    projectId: "ao-asset",
-    storageBucket: "ao-asset.firebasestorage.app",
-    messagingSenderId: "406786910363",
-    appId: "1:406786910363:web:1d837738aab6c6b9d73e3e",
-    measurementId: "G-4H7RF76176"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-
-  window.login = async () => {
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value.trim();
-    if(!username || !password) return alert('Enter username & password');
-    
-    const userDoc = await getDoc(doc(db, 'users', username));
-    if(userDoc.exists() && userDoc.data().password === password){
-      sessionStorage.setItem('user', username);
-      window.location.href = 'dashboard.html';
-    } else {
-      alert('Invalid credentials');
-    }
-  }
-
-  window.seedAdmin = async () => {
-    await setDoc(doc(db, 'users', 'admin'), { password: 'admin123' });
-    alert('Admin created: admin / admin123');
-  }
-</script>
+</style>
 </head>
-
 <body>
-  <div class="flex flex-col md:flex-row min-h-screen">
 
-    <!-- Left: Login Form -->
-    <div class="flex flex-col justify-center items-center w-full md:w-1/2 px-6 py-12">
-      <div class="login-card p-8 w-full max-w-md text-center">
-        <h1 class="title mb-3">Welcome to AO Asset</h1>
-        <p class="subtitle mb-8">Sign into your account</p>
+<div class="message">
+    <h1>Access Restricted</h1>
+    <p>
+        This website is currently blocked due to internal issues.
+        Access has been temporarily disabled while the situation is being reviewed.
+        Please try again later.
+    </p>
+</div>
 
-        <input type="text" id="username" placeholder="Username" class="w-full p-3 mb-4 rounded-lg">
-        <input type="password" id="password" placeholder="Password" class="w-full p-3 mb-6 rounded-lg">
-
-        <button onclick="login()" class="login-btn w-full mb-4">Log In</button>
-        <button onclick="seedAdmin()" class="secondary-btn w-full mb-6">Seed Admin</button>
-        <p class="text-xs text-textsoft mt-4">
-          By logging in, you agree to the <a href="#" class="text-accent underline">Terms and Conditions</a> of AO
-          Asset. This system is intended for authorized apartment management and asset analysis only. Unauthorized
-          access or misuse is strictly prohibited.
-        </p>
-
-        <div class="w-full flex flex-col items-center justify-center mt-6">
-          <p class="text-xs text-soft text-center">
-            © 2025 AO Asset And Facility Management System.<br>
-            All Rights Reserved.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right: Full Half Image (hidden on mobile) -->
-    <div class="w-full md:w-1/2 h-screen right-image">
-      <img src="backside.jpeg" alt="Tech Illustration" class="w-full h-full object-cover rounded-l-xl">
-    </div>
-
-  </div>
 </body>
-
 </html>
