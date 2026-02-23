@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="warning.png">
 <title>Access Restricted</title>
 
 <style>
@@ -14,37 +15,43 @@
     }
 
     body {
-        height: 100vh;
+        min-height: 100vh;
         background: #0a0a0f;
         display: flex;
         justify-content: center;
         align-items: center;
         color: #e0e0e0;
         overflow: hidden;
+        padding: 20px;
     }
 
-    /* subtle animated gradient glow */
+    /* animated gradient glow */
     body::before {
         content: "";
         position: absolute;
-        width: 500px;
-        height: 500px;
+        width: 60vw;
+        height: 60vw;
+        max-width: 500px;
+        max-height: 500px;
         background: radial-gradient(circle, rgba(255, 0, 100, 0.15), transparent 70%);
         animation: floatGlow 6s ease-in-out infinite alternate;
+        z-index: 0;
     }
 
     @keyframes floatGlow {
-        0% { transform: translate(-120px, -120px); }
-        100% { transform: translate(120px, 120px); }
+        0% { transform: translate(-15%, -15%); }
+        100% { transform: translate(15%, 15%); }
     }
 
     .message {
         position: relative;
+        z-index: 1;
         text-align: center;
+        width: 100%;
         max-width: 600px;
         padding: 40px;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         backdrop-filter: blur(8px);
         border-radius: 16px;
         animation: fadeIn 1.5s ease forwards;
@@ -56,16 +63,24 @@
     }
 
     h1 {
-        font-size: 28px;
+        font-size: clamp(22px, 5vw, 28px);
         margin-bottom: 15px;
         letter-spacing: 1px;
         color: #ffffff;
     }
 
     p {
-        font-size: 15px;
+        font-size: clamp(14px, 4vw, 15px);
         line-height: 1.7;
         color: #b0b0b0;
+    }
+
+    /* Extra small devices */
+    @media (max-width: 480px) {
+        .message {
+            padding: 25px 20px;
+            border-radius: 12px;
+        }
     }
 
 </style>
