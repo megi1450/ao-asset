@@ -98,6 +98,20 @@ body {
   display:none;
 }
 
+@keyframes fadeIn {
+  from {
+    opacity:0;
+    transform:translateY(10px) scale(0.98);
+  }
+  to {
+    opacity:1;
+    transform:translateY(0) scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease;
+}
 </style>
 
 
@@ -218,6 +232,46 @@ async function loadDashboard(){
 
 window.addEventListener("DOMContentLoaded",loadDashboard);
 
+/* UPDATE MODAL CONTROL */
+
+const UPDATE_VERSION = "1.0.0"; // change this when you add new updates
+
+function showUpdateModal(){
+
+  const seenVersion =
+    localStorage.getItem("dashboard_update_seen");
+
+  if(seenVersion !== UPDATE_VERSION){
+
+    document.getElementById("updateModal")
+      .classList.remove("hidden");
+
+  }
+
+}
+
+window.closeUpdateModal = function(){
+
+  localStorage.setItem(
+    "dashboard_update_seen",
+    UPDATE_VERSION
+  );
+
+  document.getElementById("updateModal")
+    .classList.add("hidden");
+
+};
+
+
+/* SHOW MODAL AFTER LOAD */
+
+window.addEventListener("DOMContentLoaded", () => {
+
+  loadDashboard();
+
+  setTimeout(showUpdateModal, 500);
+
+});
 </script>
 
 </head>
@@ -402,7 +456,38 @@ window.addEventListener("DOMContentLoaded",loadDashboard);
 
 </div>
 
+<!-- UPDATE POPUP MODAL -->
+<div id="updateModal"
+     class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 hidden">
 
+  <div class="glass-card w-[92%] max-w-md text-center animate-fadeIn">
+
+    <div class="text-accent text-lg font-semibold mb-2">
+      What's New
+    </div>
+
+    <div class="text-sm text-soft text-left space-y-2 mb-5">
+
+      <div>• New mobile-friendly dashboard interface</div>
+
+      <div>• Switchable tabs for Assets, Energy, Inventory</div>
+
+      <div>• Faster login with autofill and Windows Hello support</div>
+
+      <div>• Improved performance and loading experience</div>
+
+      <div>• Modern UI improvements and usability fixes</div>
+
+    </div>
+
+    <button onclick="closeUpdateModal()"
+            class="btn">
+      Got it
+    </button>
+
+  </div>
+
+</div>
 
 </body>
 </html>
