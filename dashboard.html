@@ -161,8 +161,28 @@ window.addEventListener('DOMContentLoaded', loadDashboard);
 </script>
 </head>
 
-<body class="min-h-screen px-4 py-6 flex flex-col items-center">
+<body class="min-h-screen px-4 py-6 flex flex-col items-center gap-6">
+<!-- HEADER -->
+<div class="glass-card w-full max-w-6xl px-6 py-4 flex justify-between items-center">
 
+  <div class="flex items-center gap-3">
+    <img src="logo.jpg" class="w-10 h-10 opacity-90">
+
+    <div>
+      <h1 class="text-xl font-semibold text-accent leading-tight">
+        AO Asset Dashboard
+      </h1>
+      <p class="text-soft text-xs">
+        Asset and Facility Management System
+      </p>
+    </div>
+  </div>
+
+  <button onclick="logout()" class="btn logout-btn px-5 py-2 text-sm w-auto">
+    Logout
+  </button>
+
+</div>
 <!-- Navigation Buttons -->
 <!-- Navigation Buttons -->
 <div class="glass-card w-full max-w-4xl text-center mb-6 p-6 flex flex-col items-center">
