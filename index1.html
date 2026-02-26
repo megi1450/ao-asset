@@ -231,7 +231,6 @@ window.seedAdmin = async function(){
 
 
 /* AUTO-LOGIN DETECTION (AUTOFILL, WINDOWS HELLO, PASSWORD MANAGERS) */
-
 function checkAutofillAndLogin(){
 
   if(loginInProgress) return;
@@ -242,14 +241,12 @@ function checkAutofillAndLogin(){
   const password =
     document.getElementById("password").value.trim();
 
-  if(username && password){
-
+  /* minimum password length check prevents premature login */
+  if(username && password.length >= 4){
     login();
-
   }
 
 }
-
 
 
 /* INITIALIZE LISTENERS */
@@ -260,17 +257,13 @@ window.addEventListener("DOMContentLoaded",()=>{
   const passwordField = document.getElementById("password");
 
 
-  /* detect manual input */
-  usernameField.addEventListener("input",checkAutofillAndLogin);
-  passwordField.addEventListener("input",checkAutofillAndLogin);
+/* detect autofill safely */
+usernameField.addEventListener("change",checkAutofillAndLogin);
+passwordField.addEventListener("change",checkAutofillAndLogin);
 
-  usernameField.addEventListener("change",checkAutofillAndLogin);
-  passwordField.addEventListener("change",checkAutofillAndLogin);
-
-
-  /* detect autofill after page load */
-  setTimeout(checkAutofillAndLogin,500);
-  setTimeout(checkAutofillAndLogin,1200);
+/* detect autofill after page load */
+setTimeout(checkAutofillAndLogin,800);
+setTimeout(checkAutofillAndLogin,1500);
 
 });
 
